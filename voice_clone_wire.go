@@ -78,6 +78,11 @@ func decodeVoiceCloneResponse(buf []byte) (out voiceCloneResponse, err error) {
 			out.PayloadIndex = int32(binary.BigEndian.Uint32(payload[0:4]))
 			_ = int(int32(binary.BigEndian.Uint32(payload[4:8]))) // payload size
 			out.PayloadData = payload[8:]
+			if compression == 1 {
+				if out.PayloadData, err = decompressGzip(out.PayloadData); err != nil {
+					return
+				}
+			}
 		}
 	} else if messageType == 0b1111 {
 		out.IsError = true

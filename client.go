@@ -54,7 +54,7 @@ func WithDebug(debug bool) Option {
 type Client interface{}
 
 type client struct {
-	options
+	opts options
 }
 
 // NewClient creates a new client with the given options.
@@ -79,5 +79,9 @@ func NewClient(fns ...Option) (Client, error) {
 	if opts.appID == "" {
 		return nil, errors.New("appID is required")
 	}
-	return &client{opts}, nil
+	return &client{opts: opts}, nil
+}
+
+func (c *client) VoiceClone() *VoiceCloneService {
+	return NewVoiceCloneService(c)
 }

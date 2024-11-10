@@ -2,6 +2,12 @@ package vevoice
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+
+	"golang.org/x/net/websocket"
 )
 
 const (
@@ -46,7 +52,7 @@ type VoiceCloneHandler func(buf []byte)
 type VoiceCloneService struct {
 	c    *client
 	opts *voiceCloneOptions
-	h    *VoiceCloneHandler
+	h    VoiceCloneHandler
 }
 
 // NewVoiceCloneService creates a new voice clone service, in streaming mode.
@@ -56,7 +62,7 @@ func NewVoiceCloneService(c *client) *VoiceCloneService {
 		opts: &voiceCloneOptions{},
 	}
 	s.opts.App.AppID = c.opts.appID
-	s.opts.App.Token = c.opts.token
+	s.opts.App.Token = "placeholder"
 	return s
 }
 
@@ -96,11 +102,60 @@ func (s *VoiceCloneService) SetTextType(textType string) {
 }
 
 // SetHandler sets the handler for the audio chunks.
-func (s *VoiceCloneService) SetHandler(h *VoiceCloneHandler) {
+func (s *VoiceCloneService) SetHandler(h VoiceCloneHandler) {
 	s.h = h
 }
 
 // Do sends the audio request to the server, and stream audio chunks to handler.
 func (s *VoiceCloneService) Do(ctx context.Context) (err error) {
-	return
+	var req []byte
+	if req, err = encodeVoiceCloneRequest(s.opts); err != nil {
+		return
+	}
+
+	var l *url.URL
+	if l, err = url.Parse(fmt.Sprintf("wss://%s/api/v1/tts/ws_binary", s.c.opts.endpoint)); err != nil {
+		return
+	}
+
+	h := http.Header{}
+	h.Add("Authorization", "Bearer;"+s.c.opts.token)
+
+	cfg := &websocket.Config{
+		Location: l,
+		Header:   h,
+	}
+
+	var conn *websocket.Conn
+	if conn, err = cfg.DialContext(ctx); err != nil {
+		return
+	}
+	defer conn.Close()
+
+	if err = websocket.Message.Send(conn, req); err != nil {
+		return
+	}
+
+	for {
+		var buf []byte
+		if err = websocket.Message.Receive(conn, &buf); err != nil {
+			if io.EOF == err {
+				err = nil
+			}
+			return
+		}
+		var res voiceCloneResponse
+		if res, err = decodeVoiceCloneResponse(buf); err != nil {
+			return
+		}
+		if res.IsPayload {
+			if s.h != nil {
+				s.h(res.PayloadData)
+			}
+		}
+		if res.IsError {
+			err = fmt.Errorf("%d: %s", res.ErrorCode, res.ErrorMessage)
+			return
+		}
+	}
 }

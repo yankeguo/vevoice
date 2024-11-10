@@ -8,14 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMarshalVoiceCloneRequest(t *testing.T) {
+func TestEncodeVoiceCloneRequest(t *testing.T) {
 	opts := &voiceCloneOptions{}
 	opts.App.AppID = "test"
 	opts.App.Token = "test"
 	opts.User.UID = "test"
 	opts.Request.Text = "test"
 
-	buf, err := marshalVoiceCloneRequest(opts)
+	buf, err := encodeVoiceCloneRequest(opts)
 	require.NoError(t, err)
 	require.Equal(t, voiceCloneClientHeader, buf[:4])
 	size := binary.BigEndian.Uint32(buf[4:8])

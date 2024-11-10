@@ -1,4 +1,4 @@
-package vevoice
+package volcvoice
 
 import (
 	"errors"
@@ -9,9 +9,9 @@ import (
 const (
 	DefaultEndpoint = "openspeech.bytedance.com"
 
-	EnvEndpoint = "VEVOICE_ENDPOINT"
-	EnvToken    = "VEVOICE_TOKEN"
-	EnvAppID    = "VEVOICE_APPID"
+	EnvEndpoint = "VOLCVOICE_ENDPOINT"
+	EnvToken    = "VOLCVOICE_TOKEN"
+	EnvAppID    = "VOLCVOICE_APPID"
 )
 
 type options struct {
@@ -23,21 +23,21 @@ type options struct {
 
 type Option func(opts *options)
 
-// WithEndpoint sets a custom endpoint for the client, default to openspeech.bytedance.com, also can be set by VEVOICE_ENDPOINT env.
+// WithEndpoint sets a custom endpoint for the client, default to openspeech.bytedance.com, also can be set by VOLCVOICE_ENDPOINT env.
 func WithEndpoint(endpoint string) Option {
 	return func(opts *options) {
 		opts.endpoint = endpoint
 	}
 }
 
-// WithToken sets the token for the client, default to VEVOICE_TOKEN env.
+// WithToken sets the token for the client, default to VOLCVOICE_TOKEN env.
 func WithToken(token string) Option {
 	return func(opts *options) {
 		opts.token = token
 	}
 }
 
-// WithAppID sets the appID for the client, default to VEVOICE_APPID env.
+// WithAppID sets the appID for the client, default to VOLCVOICE_APPID env.
 func WithAppID(appID string) Option {
 	return func(opts *options) {
 		opts.appID = appID

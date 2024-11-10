@@ -47,8 +47,10 @@ type voiceCloneOptions struct {
 	} `json:"request"`
 }
 
-type VoiceCloneHandler func(buf []byte)
+// VoiceCloneHandler is the handler for the audio chunks.
+type VoiceCloneHandler func(buf []byte) (err error)
 
+// VoiceCloneService is the service for voice clone.
 type VoiceCloneService struct {
 	c    *client
 	opts *voiceCloneOptions
@@ -63,47 +65,56 @@ func NewVoiceCloneService(c *client) *VoiceCloneService {
 	}
 	s.opts.App.AppID = c.opts.appID
 	s.opts.App.Token = "placeholder"
+	s.opts.Request.Operation = OperationSubmit
 	return s
 }
 
 // SetCluster sets the cluster for the audio.
-func (s *VoiceCloneService) SetCluster(cluster string) {
+func (s *VoiceCloneService) SetCluster(cluster string) *VoiceCloneService {
 	s.opts.App.Cluster = cluster
+	return s
 }
 
 // SetUID sets the user id for the audio.
-func (s *VoiceCloneService) SetUID(uid string) {
+func (s *VoiceCloneService) SetUID(uid string) *VoiceCloneService {
 	s.opts.User.UID = uid
+	return s
 }
 
 // SetVoiceType sets the voice type for the audio, also known as the speaker id.
-func (s *VoiceCloneService) SetVoiceType(voiceType string) {
+func (s *VoiceCloneService) SetVoiceType(voiceType string) *VoiceCloneService {
 	s.opts.Audio.VoiceType = voiceType
+	return s
 }
 
 // SetEncoding sets the encoding for the audio.
-func (s *VoiceCloneService) SetEncoding(encoding string) {
+func (s *VoiceCloneService) SetEncoding(encoding string) *VoiceCloneService {
 	s.opts.Audio.Encoding = encoding
+	return s
 }
 
 // SetRequestID sets the request id for the audio.
-func (s *VoiceCloneService) SetRequestID(reqID string) {
+func (s *VoiceCloneService) SetRequestID(reqID string) *VoiceCloneService {
 	s.opts.Request.ReqID = reqID
+	return s
 }
 
 // SetText sets the text for the audio.
-func (s *VoiceCloneService) SetText(text string) {
+func (s *VoiceCloneService) SetText(text string) *VoiceCloneService {
 	s.opts.Request.Text = text
+	return s
 }
 
 // SetTextType sets the text type for the audio.
-func (s *VoiceCloneService) SetTextType(textType string) {
+func (s *VoiceCloneService) SetTextType(textType string) *VoiceCloneService {
 	s.opts.Request.TextType = textType
+	return s
 }
 
 // SetHandler sets the handler for the audio chunks.
-func (s *VoiceCloneService) SetHandler(h VoiceCloneHandler) {
+func (s *VoiceCloneService) SetHandler(h VoiceCloneHandler) *VoiceCloneService {
 	s.h = h
+	return s
 }
 
 // Do sends the audio request to the server, and stream audio chunks to handler.
@@ -118,12 +129,19 @@ func (s *VoiceCloneService) Do(ctx context.Context) (err error) {
 		return
 	}
 
+	var o *url.URL
+	if o, err = url.Parse(l.String()); err != nil {
+		return
+	}
+
 	h := http.Header{}
 	h.Add("Authorization", "Bearer;"+s.c.opts.token)
 
 	cfg := &websocket.Config{
 		Location: l,
+		Origin:   o,
 		Header:   h,
+		Version:  websocket.ProtocolVersionHybi,
 	}
 
 	var conn *websocket.Conn
@@ -150,7 +168,9 @@ func (s *VoiceCloneService) Do(ctx context.Context) (err error) {
 		}
 		if res.IsPayload {
 			if s.h != nil {
-				s.h(res.PayloadData)
+				if err = s.h(res.PayloadData); err != nil {
+					return
+				}
 			}
 		}
 		if res.IsError {

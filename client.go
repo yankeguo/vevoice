@@ -51,7 +51,9 @@ func WithDebug(debug bool) Option {
 	}
 }
 
-type Client interface{}
+type Client interface {
+	VoiceClone() *VoiceCloneService
+}
 
 type client struct {
 	opts options

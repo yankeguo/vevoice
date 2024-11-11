@@ -172,6 +172,9 @@ func (s *VoiceCloneService) Do(ctx context.Context) (err error) {
 					return
 				}
 			}
+			if res.PayloadIndex < 0 {
+				return
+			}
 		}
 		if res.IsError {
 			err = fmt.Errorf("%d: %s", res.ErrorCode, res.ErrorMessage)

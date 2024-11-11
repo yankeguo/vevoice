@@ -11,9 +11,6 @@ import (
 )
 
 const (
-	ClusterICL           = "volcano_icl"
-	ClusterICLConcurrent = "volcano_icl_concurr"
-
 	EncodingWAV = "wav"
 	EncodingMP3 = "mp3"
 	EncodingOGG = "ogg_opus"

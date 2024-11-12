@@ -2,16 +2,31 @@ package tts
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	"github.com/yankeguo/rg"
-	"golang.org/x/net/websocket"
+)
+
+const (
+	AudioFormatMP3 = "mp3"
+	AudioFormatOGG = "ogg_opus"
+	AudioFormatPCM = "pcm"
+
+	SampleRate8K  = 8000
+	SampleRate16K = 16000
+	SampleRate24K = 24000
+	SampleRate32K = 32000
+	SampleRate44K = 44100
+	SampleRate48K = 48000
 )
 
 // InputFunc is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
@@ -171,7 +186,7 @@ func (s *Service) SetOutput(output OutputFunc) *Service {
 	return s
 }
 
-func (s *Service) createWebsocketConfig() (cfg *websocket.Config, err error) {
+func (s *Service) dial(ctx context.Context) (conn *websocket.Conn, resp *http.Response, err error) {
 	if s.apiAppID == "" {
 		err = errors.New("tts.Service: app id is required")
 		return
@@ -197,19 +212,21 @@ func (s *Service) createWebsocketConfig() (cfg *websocket.Config, err error) {
 		return
 	}
 
-	base := strings.TrimSuffix(s.apiEndpoint, "/") + "/" + strings.TrimPrefix(s.apiPath, "/")
+	location := "wss://" + strings.TrimSuffix(s.apiEndpoint, "/") + "/" + strings.TrimPrefix(s.apiPath, "/")
 
-	if cfg, err = websocket.NewConfig("wss://"+base, "https://"+base); err != nil {
+	header := http.Header{}
+	header.Set("X-Api-App-Key", s.apiAppID)
+	header.Set("X-Api-Access-Key", s.apiToken)
+	header.Set("X-Api-Resource-Id", s.resourceID)
+	header.Set("X-Api-Request-Id", s.requestID)
+	if s.connectID != "" {
+		header.Set("X-Api-Connect-Id", s.connectID)
+	}
+
+	if conn, resp, err = websocket.DefaultDialer.DialContext(ctx, location, header); err != nil {
 		return
 	}
 
-	cfg.Header.Set("X-Api-App-Key", s.apiAppID)
-	cfg.Header.Set("X-Api-Access-Key", s.apiToken)
-	cfg.Header.Set("X-Api-Resource-Id", s.resourceID)
-	cfg.Header.Set("X-Api-Request-Id", s.requestID)
-	if s.connectID != "" {
-		cfg.Header.Set("X-Api-Connect-Id", s.connectID)
-	}
 	return
 }
 
@@ -226,20 +243,18 @@ func (s *Service) Do(ctx context.Context) (err error) {
 		return
 	}
 
-	cfg := rg.Must(s.createWebsocketConfig())
-
 	if s.debug {
-		log.Println("tts.Service: websocket dialing to", cfg.Location.String())
+		log.Println("tts.Service: starting")
 	}
 
-	conn := rg.Must(cfg.DialContext(ctx))
+	conn, resp := rg.Must2(s.dial(ctx))
 	defer conn.Close()
 
 	if s.debug {
-		log.Println("tts.Service: websocket connected")
+		log.Println("tts.Service: websocket connected, LogID: ", resp.Header.Get("X-Tt-Logid"))
 	}
 
-	rg.Must0(s.protocol.startConnection(ctx, conn))
+	rg.Must0(s.startConnection(ctx, conn))
 
 	if s.debug {
 		log.Println("tts.Service: protocol connected")
@@ -247,7 +262,7 @@ func (s *Service) Do(ctx context.Context) (err error) {
 
 	sessionID := rg.Must(uuid.NewV7()).String()
 
-	rg.Must0(s.protocol.startTTSSession(
+	rg.Must0(s.startTTSSession(
 		ctx,
 		conn,
 		sessionID,
@@ -279,7 +294,7 @@ func (s *Service) Do(ctx context.Context) (err error) {
 	sendLoop:
 		for {
 			// break sendLoop if context is done
-			if ctx.Err() != nil {
+			if sCtx.Err() != nil {
 				break sendLoop
 			}
 
@@ -294,7 +309,7 @@ func (s *Service) Do(ctx context.Context) (err error) {
 			}
 
 			// break sendLoop if error
-			if ctx.Err() != nil {
+			if sCtx.Err() != nil {
 				break sendLoop
 			}
 
@@ -309,7 +324,7 @@ func (s *Service) Do(ctx context.Context) (err error) {
 				text = chunk
 			}
 
-			if err = s.protocol.sendTTSMessage(
+			if err = s.sendTTSMessage(
 				sCtx,
 				conn,
 				sessionID,
@@ -341,18 +356,18 @@ func (s *Service) Do(ctx context.Context) (err error) {
 		if err != nil {
 			if err == io.EOF {
 				if s.debug {
-					log.Println("tts.Service: input EOF")
+					log.Println("tts.Service: send loop EOF")
 				}
 				err = nil
 			} else {
 				if s.debug {
-					log.Println("tts.Service: input error:", err)
+					log.Println("tts.Service: send loop error:", err)
 				}
 				sCancel()
 			}
 		}
 
-		if err = s.protocol.finishSession(ctx, conn, sessionID); err != nil {
+		if err = s.finishSession(ctx, conn, sessionID); err != nil {
 			if s.debug {
 				log.Println("tts.Service: finish session error:", err)
 			}
@@ -377,7 +392,7 @@ func (s *Service) Do(ctx context.Context) (err error) {
 			}
 
 			var msg *Message
-			if msg, err = s.protocol.receiveMessage(sCtx, conn); err != nil {
+			if msg, err = s.receiveMessage(sCtx, conn); err != nil {
 				if s.debug {
 					log.Println("tts.Service: receive message error:", err)
 				}
@@ -391,6 +406,9 @@ func (s *Service) Do(ctx context.Context) (err error) {
 			switch msg.Type {
 			case MsgTypeFullServer:
 				if msg.Event == int32(EventSessionFinished) {
+					break recvLoop
+				} else {
+					err = fmt.Errorf("tts.Service: unexpected full server event: %d", msg.Event)
 					break recvLoop
 				}
 			case MsgTypeAudioOnlyServer:
@@ -408,9 +426,13 @@ func (s *Service) Do(ctx context.Context) (err error) {
 
 		if err != nil {
 			if s.debug {
-				log.Println("tts.Service: receive error:", err)
+				log.Println("tts.Service: recv loop error:", err)
 			}
 			sCancel()
+		} else {
+			if s.debug {
+				log.Println("tts.Service: recv loop done")
+			}
 		}
 
 		return
@@ -418,7 +440,11 @@ func (s *Service) Do(ctx context.Context) (err error) {
 
 	wg.Wait()
 
-	if err = s.protocol.finishConnection(ctx, conn); err != nil {
+	if s.debug {
+		log.Println("tts.Service: read/recv goroutines done")
+	}
+
+	if err = s.finishConnection(ctx, conn); err != nil {
 		if s.debug {
 			log.Println("tts.Service: finish connection error:", err)
 		}
@@ -427,6 +453,154 @@ func (s *Service) Do(ctx context.Context) (err error) {
 		if s.debug {
 			log.Println("tts.Service: protocol disconnected")
 		}
+	}
+
+	return
+}
+
+func (s *Service) startConnection(ctx context.Context, conn *websocket.Conn) (err error) {
+	defer rg.Guard(&err)
+
+	msg := rg.Must(NewMessage(MsgTypeFullClient, MsgTypeFlagWithEvent))
+	msg.Event = int32(EventStartConnection)
+	msg.Payload = []byte("{}")
+
+	frame := rg.Must(s.protocol.Marshal(msg))
+
+	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
+	mt, frame := rg.Must2(conn.ReadMessage())
+	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+		err = fmt.Errorf("tts.startConnection: unexpected message type: %d", mt)
+		return
+	}
+
+	msg, _ = rg.Must2(Unmarshal(frame, s.protocol.ContainsSequence))
+
+	if msg.Type != MsgTypeFullServer {
+		err = fmt.Errorf("tts.startConnection: unexpected message type: %d", msg.Type)
+		return
+	}
+
+	if Event(msg.Event) != EventConnectionStarted {
+		err = fmt.Errorf("tts.startConnection: unexpected event: %d", msg.Event)
+		return
+	}
+
+	return
+}
+
+func (s *Service) startTTSSession(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *TTSReqParams) (err error) {
+	defer rg.Guard(&err)
+
+	req := TTSRequest{
+		Event:     int32(EventStartSession),
+		Namespace: namespace,
+		ReqParams: params,
+	}
+
+	payload := rg.Must(json.Marshal(&req))
+
+	msg := rg.Must(NewMessage(MsgTypeFullClient, MsgTypeFlagWithEvent))
+	msg.Event = req.Event
+	msg.SessionID = sessionID
+	msg.Payload = payload
+
+	frame := rg.Must(s.protocol.Marshal(msg))
+
+	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
+	mt, frame := rg.Must2(conn.ReadMessage())
+	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+		err = fmt.Errorf("tts.startTTSSession: unexpected message type: %d", mt)
+		return
+	}
+
+	msg, _ = rg.Must2(Unmarshal(frame, s.protocol.ContainsSequence))
+
+	if msg.Type != MsgTypeFullServer {
+		err = fmt.Errorf("tts.startTTSSession: unexpected message type: %d", msg.Type)
+		return
+	}
+	if Event(msg.Event) != EventSessionStarted {
+		err = fmt.Errorf("tts.startTTSSession: unexpected event: %d", msg.Event)
+		return
+	}
+
+	return
+}
+
+func (s *Service) sendTTSMessage(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *TTSReqParams) (err error) {
+	defer rg.Guard(&err)
+
+	req := TTSRequest{
+		Event:     int32(EventTaskRequest),
+		Namespace: namespace,
+		ReqParams: params,
+	}
+
+	payload := rg.Must(json.Marshal(&req))
+
+	msg := rg.Must(NewMessage(MsgTypeFullClient, MsgTypeFlagWithEvent))
+	msg.Event = req.Event
+	msg.SessionID = sessionID
+	msg.Payload = payload
+
+	frame := rg.Must(s.protocol.Marshal(msg))
+
+	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
+	return
+}
+
+func (s *Service) finishSession(ctx context.Context, conn *websocket.Conn, sessionID string) (err error) {
+	defer rg.Guard(&err)
+
+	msg := rg.Must(NewMessage(MsgTypeFullClient, MsgTypeFlagWithEvent))
+	msg.Event = int32(EventFinishSession)
+	msg.SessionID = sessionID
+	msg.Payload = []byte("{}")
+
+	frame := rg.Must(s.protocol.Marshal(msg))
+	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
+	return
+}
+
+func (s *Service) receiveMessage(ctx context.Context, conn *websocket.Conn) (msg *Message, err error) {
+	defer rg.Guard(&err)
+
+	mt, frame := rg.Must2(conn.ReadMessage())
+	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+		err = fmt.Errorf("tts.receiveMessage: unexpected message type: %d", mt)
+		return
+	}
+
+	msg, _ = rg.Must2(Unmarshal(frame, s.protocol.ContainsSequence))
+	return
+}
+
+func (s *Service) finishConnection(ctx context.Context, conn *websocket.Conn) (err error) {
+	defer rg.Guard(&err)
+
+	msg := rg.Must(NewMessage(MsgTypeFullClient, MsgTypeFlagWithEvent))
+	msg.Event = int32(EventFinishConnection)
+	msg.Payload = []byte("{}")
+
+	frame := rg.Must(s.protocol.Marshal(msg))
+	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
+	mt, frame := rg.Must2(conn.ReadMessage())
+
+	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+		err = fmt.Errorf("tts.finishConnection: unexpected message type: %d", mt)
+		return
+	}
+
+	msg, _ = rg.Must2(Unmarshal(frame, s.protocol.ContainsSequence))
+
+	if msg.Type != MsgTypeFullServer {
+		err = fmt.Errorf("tts.finishConnection: unexpected message type: %d", msg.Type)
+		return
+	}
+	if Event(msg.Event) != EventConnectionFinished {
+		err = fmt.Errorf("tts.finishConnection: unexpected event: %d", msg.Event)
+		return
 	}
 
 	return

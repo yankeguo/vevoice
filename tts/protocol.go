@@ -11,19 +11,6 @@ import (
 	"github.com/golang/glog"
 )
 
-const (
-	AudioFormatMP3 = "mp3"
-	AudioFormatOGG = "ogg_opus"
-	AudioFormatPCM = "pcm"
-
-	SampleRate8K  = 8000
-	SampleRate16K = 16000
-	SampleRate24K = 24000
-	SampleRate32K = 32000
-	SampleRate44K = 44100
-	SampleRate48K = 48000
-)
-
 type Event int32
 
 const (

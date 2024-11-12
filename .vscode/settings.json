@@ -4,6 +4,7 @@
         "concurr",
         "glog",
         "openspeech",
+        "SSML",
         "volcvoice"
     ]
 }

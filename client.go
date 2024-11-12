@@ -7,16 +7,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yankeguo/volcvoice/tts"
+	"github.com/gorilla/websocket"
 )
 
 const (
-	DefaultEndpoint = "openspeech.bytedance.com"
+	defaultEndpoint = "openspeech.bytedance.com"
 
-	EnvDebug    = "VOLCVIOCE_DEBUG"
-	EnvEndpoint = "VOLCVOICE_ENDPOINT"
-	EnvToken    = "VOLCVOICE_TOKEN"
-	EnvAppID    = "VOLCVOICE_APPID"
+	envKeyDebug    = "VOLCVOICE_DEBUG"
+	envKeyEndpoint = "VOLCVOICE_ENDPOINT"
+	envKeyToken    = "VOLCVOICE_TOKEN"
+	envKeyAppID    = "VOLCVOICE_APPID"
 )
 
 type options struct {
@@ -24,6 +24,7 @@ type options struct {
 	token    string
 	appID    string
 	debug    bool
+	dialer   *websocket.Dialer
 }
 
 type Option func(opts *options)
@@ -57,48 +58,53 @@ func WithDebug(debug bool) Option {
 
 // Client is the interface for the volcvoice client.
 type Client interface {
-	// TTS create a new bidirectional TTS service.
-	TTS() *tts.Service
+	// Synthesize create a new bidirectional voice synthesize service.
+	Synthesize() *SynthesizeService
 }
 
 type client struct {
-	opts options
+	options
 }
 
 // NewClient creates a new client with the given options.
 func NewClient(fns ...Option) (Client, error) {
 	opts := options{
-		endpoint: strings.TrimSpace(os.Getenv(EnvEndpoint)),
-		token:    strings.TrimSpace(os.Getenv(EnvToken)),
-		appID:    strings.TrimSpace(os.Getenv(EnvAppID)),
+		endpoint: strings.TrimSpace(os.Getenv(envKeyEndpoint)),
+		token:    strings.TrimSpace(os.Getenv(envKeyToken)),
+		appID:    strings.TrimSpace(os.Getenv(envKeyAppID)),
 	}
-	opts.debug, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(EnvDebug)))
+	opts.debug, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(envKeyDebug)))
 
 	for _, fn := range fns {
 		fn(&opts)
 	}
 
-	if opts.endpoint == "" {
-		opts.endpoint = DefaultEndpoint
-		if opts.debug {
-			log.Println("volcvoice.NewClient: using default endpoint:", opts.endpoint)
-		}
-	}
 	if opts.token == "" {
 		return nil, errors.New("volcvoice.NewClient: token is required")
 	}
 	if opts.appID == "" {
 		return nil, errors.New("volcvoice.NewClient: appId is required")
 	}
-	return &client{opts: opts}, nil
+	if opts.endpoint == "" {
+		opts.endpoint = defaultEndpoint
+		if opts.debug {
+			log.Println("volcvoice.NewClient: using default endpoint:", opts.endpoint)
+		}
+	}
+	if opts.dialer == nil {
+		opts.dialer = websocket.DefaultDialer
+	}
+
+	return &client{options: opts}, nil
 }
 
-// TTS create a new bidirectional TTS service.
-func (c *client) TTS() *tts.Service {
-	return tts.New().
-		SetDebug(c.opts.debug).
-		SetAPIEndpoint(c.opts.endpoint).
-		SetAPIPath("/api/v3/tts/bidirection").
-		SetAPIAppID(c.opts.appID).
-		SetAPIToken(c.opts.token)
+func (c *client) log(items ...any) {
+	if c.debug {
+		log.Println(items...)
+	}
+}
+
+// Synthesize create a new bidirectional Synthesize service.
+func (c *client) Synthesize() *SynthesizeService {
+	return newSynthesizeService(c)
 }

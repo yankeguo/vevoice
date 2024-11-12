@@ -1,4 +1,10 @@
-package tts
+package tts_wire
+
+/**
+ * This file is extracted and combined from the official demo code
+ *
+ * See https://www.volcengine.com/docs/6561/1329505
+ */
 
 import (
 	"bytes"

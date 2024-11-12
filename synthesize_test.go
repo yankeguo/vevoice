@@ -11,10 +11,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"github.com/yankeguo/rg"
-	"github.com/yankeguo/volcvoice/tts"
 )
 
-func TestTTS(t *testing.T) {
+func TestSynthesizeService(t *testing.T) {
 	client, err := NewClient(WithDebug(true))
 	require.NoError(t, err)
 
@@ -32,12 +31,12 @@ func TestTTS(t *testing.T) {
 		inputIdx int64 = -1
 	)
 
-	err = client.TTS().
-		SetResourceID(tts.ResourceVoiceClone2_0).
+	err = client.Synthesize().
+		SetResourceID(SynthesizeResourceVoiceClone2_0).
 		SetRequestID(rg.Must(uuid.NewV7()).String()).
 		SetConnectID(rg.Must(uuid.NewV7()).String()).
-		SetFormat(tts.AudioFormatPCM).
-		SetSampleRate(tts.SampleRate16K).
+		SetFormat(AudioFormatPCM).
+		SetSampleRate(SampleRate16K).
 		SetSpeakerID(os.Getenv("VOLCVOICE_SPEAKER_ID")).
 		SetInput(func(ctx context.Context) (chunk string, err error) {
 			idx := atomic.AddInt64(&inputIdx, 1)

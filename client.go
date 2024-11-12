@@ -85,6 +85,9 @@ type Client interface {
 
 	// VoiceCloneUpload create a new service for voice clone upload.
 	VoiceCloneUpload() *VoiceCloneUploadService
+
+	// VoiceCloneSynthesize create a new service for voice clone synthesize.
+	VoiceCloneSynthesize() *VoiceCloneSynthesizeService
 }
 
 type client struct {
@@ -171,4 +174,8 @@ func (c *client) Synthesize() *SynthesizeService {
 
 func (c *client) VoiceCloneUpload() *VoiceCloneUploadService {
 	return newVoiceCloneUploadService(c)
+}
+
+func (c *client) VoiceCloneSynthesize() *VoiceCloneSynthesizeService {
+	return newVoiceCloneSynthesizeService(c)
 }

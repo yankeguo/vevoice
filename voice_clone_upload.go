@@ -80,20 +80,23 @@ func (s *VoiceCloneUploadService) SetModelType(modelType int) *VoiceCloneUploadS
 	return s
 }
 
-func (s *VoiceCloneUploadService) Do(ctx context.Context) (err error) {
-	req := map[string]any{
+func (s *VoiceCloneUploadService) buildBody() map[string]any {
+	body := map[string]any{
 		"appid":      s.c.appID,
 		"speaker_id": s.speakerID,
 		"audios":     s.audios,
 		"source":     2,
 	}
 	if s.language != nil {
-		req["language"] = *s.language
+		body["language"] = *s.language
 	}
 	if s.modelType != nil {
-		req["model_type"] = *s.modelType
+		body["model_type"] = *s.modelType
 	}
+	return body
+}
 
+func (s *VoiceCloneUploadService) Do(ctx context.Context) (err error) {
 	var res VoiceCloneUploadResponse
 
 	if err = s.c.httpPost(
@@ -103,7 +106,7 @@ func (s *VoiceCloneUploadService) Do(ctx context.Context) (err error) {
 			"Authorization": "Bearer;" + s.c.token,
 			"Resource-Id":   s.resourceID,
 		},
-		req,
+		s.buildBody(),
 		&res,
 	); err != nil {
 		return

@@ -32,11 +32,11 @@ const (
 	SampleRate48K = 48000
 )
 
-// SynthesizeInput is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
-type SynthesizeInput func(ctx context.Context) (chunk string, err error)
+// SynthesizeStreamInput is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
+type SynthesizeStreamInput func(ctx context.Context) (chunk string, err error)
 
-// SynthesizeOutput is a function to process output audio chunk.
-type SynthesizeOutput func(ctx context.Context, chunk []byte) (err error)
+// SynthesizeStreamOutput is a function to process output audio chunk.
+type SynthesizeStreamOutput func(ctx context.Context, chunk []byte) (err error)
 
 const (
 	// SynthesizeResourceTTS is a resource id for TTS service.
@@ -65,8 +65,8 @@ type SynthesizeService struct {
 
 	ssml bool
 
-	input  SynthesizeInput
-	output SynthesizeOutput
+	input  SynthesizeStreamInput
+	output SynthesizeStreamOutput
 }
 
 func newSynthesizeService(c *client) *SynthesizeService {
@@ -145,13 +145,13 @@ func (s *SynthesizeService) SetSSML(ssml bool) *SynthesizeService {
 }
 
 // SetInputFunc sets the input function
-func (s *SynthesizeService) SetInput(input SynthesizeInput) *SynthesizeService {
+func (s *SynthesizeService) SetInput(input SynthesizeStreamInput) *SynthesizeService {
 	s.input = input
 	return s
 }
 
 // SetOutputFunc sets the output function
-func (s *SynthesizeService) SetOutput(output SynthesizeOutput) *SynthesizeService {
+func (s *SynthesizeService) SetOutput(output SynthesizeStreamOutput) *SynthesizeService {
 	s.output = output
 	return s
 }

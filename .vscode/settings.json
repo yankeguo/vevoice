@@ -5,6 +5,7 @@
         "glog",
         "openspeech",
         "SSML",
+        "voiceclone",
         "volcvoice"
     ]
 }

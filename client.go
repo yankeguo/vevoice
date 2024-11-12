@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"strings"
+
+	"github.com/yankeguo/volcvoice/tts"
 )
 
 const (
@@ -51,8 +53,10 @@ func WithDebug(debug bool) Option {
 	}
 }
 
+// Client is the interface for the volcvoice client.
 type Client interface {
-	VoiceClone() *VoiceCloneService
+	// TTS create a new bidirectional TTS service.
+	TTS() *tts.Service
 }
 
 type client struct {
@@ -73,17 +77,22 @@ func NewClient(fns ...Option) (Client, error) {
 		fn(&opts)
 	}
 	if opts.endpoint == "" {
-		return nil, errors.New("endpoint is required")
+		return nil, errors.New("volcvoice.Client: endpoint is required")
 	}
 	if opts.token == "" {
-		return nil, errors.New("token is required")
+		return nil, errors.New("volcvoice.Client: token is required")
 	}
 	if opts.appID == "" {
-		return nil, errors.New("appID is required")
+		return nil, errors.New("volcvoice.Client: appId is required")
 	}
 	return &client{opts: opts}, nil
 }
 
-func (c *client) VoiceClone() *VoiceCloneService {
-	return NewVoiceCloneService(c)
+// TTS create a new bidirectional TTS service.
+func (c *client) TTS() *tts.Service {
+	return tts.New().
+		SetEndpoint(c.opts.endpoint).
+		SetAppID(c.opts.appID).
+		SetToken(c.opts.token).
+		SetDebug(c.opts.debug)
 }

@@ -6,7 +6,7 @@ A Go Library for Volcengine (Bytedance) Voice Service
 
 **PCM output format**
 
-16-bit signed integer, little-endian, mono
+`16-bit signed integer, little-endian, mono`, default to `24k` sample rate.
 
 Example ffmpeg command:
 
@@ -41,7 +41,7 @@ service := client.VoiceCloneUpload().
 err := service.Do(context.Background())
 ```
 
-**Bi-directional stream TTS**
+**Bi-directional Stream TTS**
 
 ```go
 var (

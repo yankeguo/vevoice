@@ -29,7 +29,7 @@ client := volcvoice.NewClient(
 )
 ```
 
-**Upload Voice Clone Sample**
+**Voice Clone Upload**
 
 ```go
 service := client.VoiceCloneUpload().

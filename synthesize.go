@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -17,9 +16,13 @@ import (
 )
 
 const (
-	AudioFormatMP3 = "mp3"
-	AudioFormatOGG = "ogg_opus"
-	AudioFormatPCM = "pcm"
+	AudioFormatAAC      = "aac"
+	AudioFormatM4A      = "m4a"
+	AudioFormatMP3      = "mp3"
+	AudioFormatOGG      = "ogg"
+	AudioFormatOGG_OPUS = "ogg_opus"
+	AudioFormatPCM      = "pcm"
+	AudioFormatWAV      = "wav"
 
 	SampleRate8K  = 8000
 	SampleRate16K = 16000
@@ -46,9 +49,8 @@ const (
 
 // SynthesizeService is a service to synthesize speech in bi-directional stream mode.
 type SynthesizeService struct {
-	c       *client
-	proto   *tts_wire.BinaryProtocol
-	apiPath string
+	c     *client
+	proto *tts_wire.BinaryProtocol
 
 	resourceID string
 	requestID  string
@@ -69,9 +71,8 @@ type SynthesizeService struct {
 
 func newSynthesizeService(c *client) *SynthesizeService {
 	s := &SynthesizeService{
-		c:       c,
-		apiPath: "/api/v3/tts/bidirection",
-		proto:   tts_wire.NewBinaryProtocol(),
+		c:     c,
+		proto: tts_wire.NewBinaryProtocol(),
 	}
 
 	s.proto.SetVersion(tts_wire.Version1)
@@ -79,12 +80,7 @@ func newSynthesizeService(c *client) *SynthesizeService {
 	s.proto.SetSerialization(tts_wire.SerializationJSON)
 	s.proto.SetCompression(tts_wire.CompressionNone, nil)
 	s.proto.ContainsSequence = tts_wire.ContainsSequence
-	return s
-}
 
-// SetAPIPath sets the path
-func (s *SynthesizeService) SetAPIPath(path string) *SynthesizeService {
-	s.apiPath = path
 	return s
 }
 
@@ -161,10 +157,6 @@ func (s *SynthesizeService) SetOutput(output SynthesizeOutput) *SynthesizeServic
 }
 
 func (s *SynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, resp *http.Response, err error) {
-	if s.apiPath == "" {
-		err = errors.New("synthesize: api path is required")
-		return
-	}
 	if s.resourceID == "" {
 		err = errors.New("synthesize: resource id is required")
 		return
@@ -174,7 +166,7 @@ func (s *SynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, res
 		return
 	}
 
-	location := "wss://" + strings.TrimSuffix(s.c.endpoint, "/") + "/" + strings.TrimPrefix(s.apiPath, "/")
+	location := "wss://" + s.c.endpoint + "/api/v3/tts/bidirection"
 
 	header := http.Header{}
 	header.Set("X-Api-App-Key", s.c.appID)
@@ -185,7 +177,7 @@ func (s *SynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, res
 		header.Set("X-Api-Connect-Id", s.connectID)
 	}
 
-	if conn, resp, err = websocket.DefaultDialer.DialContext(ctx, location, header); err != nil {
+	if conn, resp, err = s.c.ws.DialContext(ctx, location, header); err != nil {
 		return
 	}
 
@@ -205,16 +197,16 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 		return
 	}
 
-	s.c.log("synthesize: starting")
+	s.c.debug("synthesize: starting")
 
 	conn, resp := rg.Must2(s.dial(ctx))
 	defer conn.Close()
 
-	s.c.log("synthesize: websocket connected, LogID: ", resp.Header.Get("X-Tt-Logid"))
+	s.c.debug("synthesize: websocket connected, LogID: ", resp.Header.Get("X-Tt-Logid"))
 
 	rg.Must0(s.startConnection(ctx, conn))
 
-	s.c.log("synthesize: protocol connected")
+	s.c.debug("synthesize: protocol connected")
 
 	sessionID := rg.Must(uuid.NewV7()).String()
 
@@ -234,7 +226,7 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 		},
 	))
 
-	s.c.log("synthesize: TTS session started:", sessionID)
+	s.c.debug("synthesize: TTS session started:", sessionID)
 
 	sCtx, sCancel := context.WithCancel(ctx)
 	defer sCancel()
@@ -258,7 +250,7 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 				break sendLoop
 			}
 
-			s.c.log("synthesize: input chunk:", chunk)
+			s.c.debug("synthesize: input chunk:", chunk)
 
 			// break sendLoop if error
 			if sCtx.Err() != nil {
@@ -293,29 +285,29 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 					},
 				},
 			); err != nil {
-				s.c.log("synthesize: send TTS message error:", err)
+				s.c.debug("synthesize: send TTS message error:", err)
 				// break sendLoop if error
 				break sendLoop
 			} else {
-				s.c.log("synthesize: TTS message sent for chunk:", chunk)
+				s.c.debug("synthesize: TTS message sent for chunk:", chunk)
 			}
 		}
 
 		if err != nil {
 			if err == io.EOF {
-				s.c.log("synthesize: send loop EOF")
+				s.c.debug("synthesize: send loop EOF")
 				err = nil
 			} else {
-				s.c.log("synthesize: send loop error:", err)
+				s.c.debug("synthesize: send loop error:", err)
 				sCancel()
 			}
 		}
 
 		if err = s.finishSession(ctx, conn, sessionID); err != nil {
-			s.c.log("synthesize: finish session error:", err)
+			s.c.debug("synthesize: finish session error:", err)
 			sCancel()
 		} else {
-			s.c.log("synthesize: TTS session finished")
+			s.c.debug("synthesize: TTS session finished")
 		}
 
 		return
@@ -333,10 +325,10 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 
 			var msg *tts_wire.Message
 			if msg, err = s.receiveMessage(sCtx, conn); err != nil {
-				s.c.log("synthesize: receive message error:", err)
+				s.c.debug("synthesize: receive message error:", err)
 				break recvLoop
 			} else {
-				s.c.log("synthesize: received message:", msg.Type)
+				s.c.debug("synthesize: received message:", msg.Type)
 			}
 
 			switch msg.Type {
@@ -361,10 +353,10 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 		}
 
 		if err != nil {
-			s.c.log("synthesize: recv loop error:", err)
+			s.c.debug("synthesize: recv loop error:", err)
 			sCancel()
 		} else {
-			s.c.log("synthesize: recv loop done")
+			s.c.debug("synthesize: recv loop done")
 		}
 
 		return
@@ -372,13 +364,13 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 
 	wg.Wait()
 
-	s.c.log("synthesize: read/recv goroutines done")
+	s.c.debug("synthesize: read/recv goroutines done")
 
 	if err = s.finishConnection(ctx, conn); err != nil {
-		s.c.log("synthesize: finish connection error:", err)
+		s.c.debug("synthesize: finish connection error:", err)
 		return
 	} else {
-		s.c.log("synthesize: protocol disconnected")
+		s.c.debug("synthesize: protocol disconnected")
 	}
 
 	return

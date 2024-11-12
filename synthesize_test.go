@@ -14,7 +14,7 @@ import (
 )
 
 func TestSynthesizeService(t *testing.T) {
-	client, err := NewClient(WithDebug(true))
+	client, err := NewClient(WithVerbose(true))
 	require.NoError(t, err)
 
 	f, err := os.OpenFile("test.pcm", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)

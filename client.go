@@ -1,19 +1,25 @@
 package volcvoice
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
 
 	"github.com/gorilla/websocket"
+	"github.com/yankeguo/rg"
 )
 
 const (
 	defaultEndpoint = "openspeech.bytedance.com"
 
-	envKeyDebug    = "VOLCVOICE_DEBUG"
+	envKeyDebug    = "VOLCVOICE_VERBOSE"
 	envKeyEndpoint = "VOLCVOICE_ENDPOINT"
 	envKeyToken    = "VOLCVOICE_TOKEN"
 	envKeyAppID    = "VOLCVOICE_APPID"
@@ -23,8 +29,9 @@ type options struct {
 	endpoint string
 	token    string
 	appID    string
-	debug    bool
-	dialer   *websocket.Dialer
+	verbose  bool
+	ws       *websocket.Dialer
+	http     *http.Client
 }
 
 type Option func(opts *options)
@@ -50,9 +57,24 @@ func WithAppID(appID string) Option {
 	}
 }
 
-func WithDebug(debug bool) Option {
+// WithVerbose enables verbose mode for the client, default to VOLCVOICE_VERBOSE env.
+func WithVerbose(verbose bool) Option {
 	return func(opts *options) {
-		opts.debug = debug
+		opts.verbose = verbose
+	}
+}
+
+// WithWebsocketDialer sets a custom websocket dialer for the client.
+func WithWebsocketDialer(dialer *websocket.Dialer) Option {
+	return func(opts *options) {
+		opts.ws = dialer
+	}
+}
+
+// WithHTTPClient sets a custom http client for the client.
+func WithHTTPClient(client *http.Client) Option {
+	return func(opts *options) {
+		opts.http = client
 	}
 }
 
@@ -60,6 +82,9 @@ func WithDebug(debug bool) Option {
 type Client interface {
 	// Synthesize create a new bidirectional voice synthesize service.
 	Synthesize() *SynthesizeService
+
+	// VoiceCloneUpload create a new service for voice clone upload.
+	VoiceCloneUpload() *VoiceCloneUploadService
 }
 
 type client struct {
@@ -73,11 +98,13 @@ func NewClient(fns ...Option) (Client, error) {
 		token:    strings.TrimSpace(os.Getenv(envKeyToken)),
 		appID:    strings.TrimSpace(os.Getenv(envKeyAppID)),
 	}
-	opts.debug, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(envKeyDebug)))
+	opts.verbose, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(envKeyDebug)))
 
 	for _, fn := range fns {
 		fn(&opts)
 	}
+
+	opts.endpoint = strings.TrimSuffix(strings.TrimPrefix(opts.endpoint, "/"), "/")
 
 	if opts.token == "" {
 		return nil, errors.New("volcvoice.NewClient: token is required")
@@ -87,24 +114,61 @@ func NewClient(fns ...Option) (Client, error) {
 	}
 	if opts.endpoint == "" {
 		opts.endpoint = defaultEndpoint
-		if opts.debug {
+		if opts.verbose {
 			log.Println("volcvoice.NewClient: using default endpoint:", opts.endpoint)
 		}
 	}
-	if opts.dialer == nil {
-		opts.dialer = websocket.DefaultDialer
+	if opts.ws == nil {
+		opts.ws = websocket.DefaultDialer
+	}
+	if opts.http == nil {
+		opts.http = http.DefaultClient
 	}
 
 	return &client{options: opts}, nil
 }
 
-func (c *client) log(items ...any) {
-	if c.debug {
+func (c *client) debug(items ...any) {
+	if c.verbose {
 		log.Println(items...)
 	}
 }
 
-// Synthesize create a new bidirectional Synthesize service.
+func (c *client) httpPost(ctx context.Context, path string, header map[string]string, valueIn any, valueOut any) (err error) {
+	defer rg.Guard(&err)
+
+	buf := rg.Must(json.Marshal(valueIn))
+
+	c.debug("POST", path, string(buf))
+
+	req := rg.Must(http.NewRequestWithContext(ctx, http.MethodPost, "https://"+c.endpoint+path, bytes.NewReader(buf)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	for k, v := range header {
+		req.Header.Set(k, v)
+	}
+
+	res := rg.Must(c.http.Do(req))
+	defer res.Body.Close()
+
+	buf = rg.Must(io.ReadAll(res.Body))
+
+	c.debug("RESPONSE", res.Status, string(buf))
+
+	if res.StatusCode >= 400 {
+		err = errors.New("client.httpPost: " + res.Status + " " + string(buf))
+		return
+	}
+
+	rg.Must0(json.Unmarshal(buf, valueOut))
+
+	return
+}
+
 func (c *client) Synthesize() *SynthesizeService {
 	return newSynthesizeService(c)
+}
+
+func (c *client) VoiceCloneUpload() *VoiceCloneUploadService {
+	return newVoiceCloneUploadService(c)
 }

@@ -2,6 +2,12 @@
 All notable changes to this project will be documented in this file. See [conventional commits](https://www.conventionalcommits.org/) for commit guidelines.
 
 - - -
+## v0.1.1 - 2024-11-12
+#### Features
+- add stream synthesize input from slice and channel - (01164dc) - GUO YANKE
+
+- - -
+
 ## v0.1.0 - 2024-11-12
 #### Bug Fixes
 - correct message handling for FullServer message - (c5ca606) - GUO YANKE

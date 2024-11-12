@@ -191,21 +191,7 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 
 	sessionID := rg.Must(uuid.NewV7()).String()
 
-	rg.Must0(s.startTTSSession(
-		ctx,
-		conn,
-		sessionID,
-		duplexSynthesizeNamespace,
-		&duplex_wire.TTSReqParams{
-			Speaker: s.speakerID,
-			AudioParams: &duplex_wire.AudioParams{
-				Format:     s.format,
-				SampleRate: int32(s.sampleRate),
-				SpeechRate: int32(s.speechRate),
-				PitchRate:  int32(s.pitchRate),
-			},
-		},
-	))
+	rg.Must0(s.startTTSSession(ctx, conn, sessionID))
 
 	s.c.debug("duplex_synthesize: TTS session started:", sessionID)
 
@@ -238,34 +224,7 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 				break sendLoop
 			}
 
-			var (
-				text string
-				ssml string
-			)
-
-			if s.ssml {
-				ssml = chunk
-			} else {
-				text = chunk
-			}
-
-			if err = s.sendTTSMessage(
-				sCtx,
-				conn,
-				sessionID,
-				duplexSynthesizeNamespace,
-				&duplex_wire.TTSReqParams{
-					Text:    text,
-					Ssml:    ssml,
-					Speaker: s.speakerID,
-					AudioParams: &duplex_wire.AudioParams{
-						Format:     s.format,
-						SampleRate: int32(s.sampleRate),
-						SpeechRate: int32(s.speechRate),
-						PitchRate:  int32(s.pitchRate),
-					},
-				},
-			); err != nil {
+			if err = s.sendTTSMessage(sCtx, conn, sessionID, chunk); err != nil {
 				s.c.debug("duplex_synthesize: send TTS message error:", err)
 				// break sendLoop if error
 				break sendLoop
@@ -385,13 +344,24 @@ func (s *DuplexSynthesizeService) startConnection(ctx context.Context, conn *web
 	return
 }
 
-func (s *DuplexSynthesizeService) startTTSSession(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *duplex_wire.TTSReqParams) (err error) {
+func (s *DuplexSynthesizeService) startTTSSession(ctx context.Context, conn *websocket.Conn, sessionID string) (err error) {
 	defer rg.Guard(&err)
 
 	req := duplex_wire.TTSRequest{
+		User: &duplex_wire.TTSUser{
+			Uid: s.userID,
+		},
 		Event:     int32(duplex_wire.EventStartSession),
-		Namespace: namespace,
-		ReqParams: params,
+		Namespace: duplexSynthesizeNamespace,
+		ReqParams: &duplex_wire.TTSReqParams{
+			Speaker: s.speakerID,
+			AudioParams: &duplex_wire.AudioParams{
+				Format:     s.format,
+				SampleRate: int32(s.sampleRate),
+				SpeechRate: int32(s.speechRate),
+				PitchRate:  int32(s.pitchRate),
+			},
+		},
 	}
 
 	payload := rg.Must(json.Marshal(&req))
@@ -424,13 +394,34 @@ func (s *DuplexSynthesizeService) startTTSSession(ctx context.Context, conn *web
 	return
 }
 
-func (s *DuplexSynthesizeService) sendTTSMessage(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *duplex_wire.TTSReqParams) (err error) {
+func (s *DuplexSynthesizeService) sendTTSMessage(ctx context.Context, conn *websocket.Conn, sessionID, content string) (err error) {
 	defer rg.Guard(&err)
+
+	var (
+		text string
+		ssml string
+	)
+
+	if s.ssml {
+		ssml = content
+	} else {
+		text = content
+	}
 
 	req := duplex_wire.TTSRequest{
 		Event:     int32(duplex_wire.EventTaskRequest),
-		Namespace: namespace,
-		ReqParams: params,
+		Namespace: duplexSynthesizeNamespace,
+		ReqParams: &duplex_wire.TTSReqParams{
+			Text:    text,
+			Ssml:    ssml,
+			Speaker: s.speakerID,
+			AudioParams: &duplex_wire.AudioParams{
+				Format:     s.format,
+				SampleRate: int32(s.sampleRate),
+				SpeechRate: int32(s.speechRate),
+				PitchRate:  int32(s.pitchRate),
+			},
+		},
 	}
 
 	payload := rg.Must(json.Marshal(&req))

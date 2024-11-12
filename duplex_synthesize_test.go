@@ -13,7 +13,7 @@ import (
 	"github.com/yankeguo/rg"
 )
 
-func TestSynthesizeService(t *testing.T) {
+func TestDuplexSynthesizeService(t *testing.T) {
 	client, err := NewClient(WithVerbose(true))
 	require.NoError(t, err)
 

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVoiceCloneUpload(t *testing.T) {
+func TestVoiceCloneUploadService(t *testing.T) {
 	client, err := NewClient(WithVerbose(true))
 	require.NoError(t, err)
 

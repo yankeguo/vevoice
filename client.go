@@ -36,7 +36,7 @@ const (
 const (
 	defaultEndpoint = "openspeech.bytedance.com"
 
-	envKeyDebug    = "VOLCVOICE_VERBOSE"
+	envKeyVerbose  = "VOLCVOICE_VERBOSE"
 	envKeyEndpoint = "VOLCVOICE_ENDPOINT"
 	envKeyToken    = "VOLCVOICE_TOKEN"
 	envKeyAppID    = "VOLCVOICE_APPID"
@@ -97,10 +97,10 @@ func WithHTTPClient(client *http.Client) Option {
 
 // Client is the interface for the volcvoice client.
 type Client interface {
-	// StreamSynthesize create a new service for stream synthesize service.
+	// StreamSynthesize create a new service for stream synthesize.
 	StreamSynthesize() *StreamSynthesizeService
 
-	// DuplexSynthesize create a new bidirectional stream synthesize service.
+	// DuplexSynthesize create a new service for bidirectional stream synthesize.
 	DuplexSynthesize() *DuplexSynthesizeService
 
 	// VoiceCloneUpload create a new service for voice clone upload.
@@ -118,7 +118,7 @@ func NewClient(fns ...Option) (Client, error) {
 		token:    strings.TrimSpace(os.Getenv(envKeyToken)),
 		appID:    strings.TrimSpace(os.Getenv(envKeyAppID)),
 	}
-	opts.verbose, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(envKeyDebug)))
+	opts.verbose, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(envKeyVerbose)))
 
 	for _, fn := range fns {
 		fn(&opts)

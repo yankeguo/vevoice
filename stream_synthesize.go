@@ -131,6 +131,13 @@ func (s *StreamSynthesizeService) buildBody() map[string]any {
 
 // Do sends the audio request to the server, and stream audio chunks to handler.
 func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
+	if s.output == nil {
+		err = fmt.Errorf("stream_synthesize: output handler is required")
+		return
+	}
+
+	s.c.debug("stream_synthesize: starting")
+
 	header := http.Header{}
 	header.Add("Authorization", "Bearer;"+s.c.token)
 
@@ -144,6 +151,8 @@ func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 	}
 	defer conn.Close()
 
+	s.c.debug("stream_synthesize: websocket connected")
+
 	var body []byte
 	if body, err = stream_wire.EncodeRequest(s.buildBody()); err != nil {
 		return
@@ -153,9 +162,13 @@ func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 		return
 	}
 
+	s.c.debug("stream_synthesize: request sent")
+
 	for {
-		var mt int
-		var buf []byte
+		var (
+			mt  int
+			buf []byte
+		)
 		if mt, buf, err = conn.ReadMessage(); err != nil {
 			if io.EOF == err {
 				err = nil
@@ -170,11 +183,10 @@ func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 		if res, err = stream_wire.DecodeResponse(buf); err != nil {
 			return
 		}
+		s.c.debug("stream_synthesize: response: is_payload:", res.IsPayload, "is_error:", res.IsError)
 		if res.IsPayload {
-			if s.output != nil {
-				if err = s.output(ctx, res.PayloadData); err != nil {
-					return
-				}
+			if err = s.output(ctx, res.PayloadData); err != nil {
+				return
 			}
 			if res.PayloadIndex < 0 {
 				return

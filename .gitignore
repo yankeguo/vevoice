@@ -27,6 +27,7 @@ go.work.sum
 # audio file
 *.pcm
 *.mp3
+!testdata/*.mp3
 
 # official demo
 /bidirectional_tts

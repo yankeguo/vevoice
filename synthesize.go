@@ -335,9 +335,6 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 			case tts_wire.MsgTypeFullServer:
 				if msg.Event == int32(tts_wire.EventSessionFinished) {
 					break recvLoop
-				} else {
-					err = fmt.Errorf("synthesize: unexpected full server event: %d", msg.Event)
-					break recvLoop
 				}
 			case tts_wire.MsgTypeAudioOnlyServer:
 				if err = s.output(sCtx, msg.Payload); err != nil {

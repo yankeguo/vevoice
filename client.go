@@ -139,7 +139,7 @@ func (c *client) httpPost(ctx context.Context, path string, header map[string]st
 
 	buf := rg.Must(json.Marshal(valueIn))
 
-	c.debug("POST", path, string(buf))
+	c.debug("POST", path)
 
 	req := rg.Must(http.NewRequestWithContext(ctx, http.MethodPost, "https://"+c.endpoint+path, bytes.NewReader(buf)))
 	req.Header.Set("Content-Type", "application/json")
@@ -153,7 +153,7 @@ func (c *client) httpPost(ctx context.Context, path string, header map[string]st
 
 	buf = rg.Must(io.ReadAll(res.Body))
 
-	c.debug("RESPONSE", res.Status, string(buf))
+	c.debug("RESPONSE", res.Status)
 
 	if res.StatusCode >= 400 {
 		err = errors.New("client.httpPost: " + res.Status + " " + string(buf))

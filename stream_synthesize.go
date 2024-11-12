@@ -163,7 +163,7 @@ func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 			return
 		}
 		if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-			err = fmt.Errorf("unexpected message type: %d", mt)
+			err = fmt.Errorf("stream_synthesize: unexpected message type: %d", mt)
 			return
 		}
 		var res stream_wire.Response
@@ -181,7 +181,7 @@ func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 			}
 		}
 		if res.IsError {
-			err = fmt.Errorf("%d: %s", res.ErrorCode, res.ErrorMessage)
+			err = fmt.Errorf("stream_synthesize: %d %s", res.ErrorCode, res.ErrorMessage)
 			return
 		}
 	}

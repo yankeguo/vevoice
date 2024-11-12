@@ -139,11 +139,11 @@ func (s *DuplexSynthesizeService) SetOutput(output StreamSynthesizeOutput) *Dupl
 
 func (s *DuplexSynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, resp *http.Response, err error) {
 	if s.resourceID == "" {
-		err = errors.New("synthesize: resource id is required")
+		err = errors.New("duplex_synthesize: resource id is required")
 		return
 	}
 	if s.requestID == "" {
-		err = errors.New("synthesize: request id is required")
+		err = errors.New("duplex_synthesize: request id is required")
 		return
 	}
 
@@ -169,25 +169,25 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 	defer rg.Guard(&err)
 
 	if s.input == nil {
-		err = errors.New("synthesize: input function is required")
+		err = errors.New("duplex_synthesize: input function is required")
 		return
 	}
 
 	if s.output == nil {
-		err = errors.New("synthesize: output function is required")
+		err = errors.New("duplex_synthesize: output function is required")
 		return
 	}
 
-	s.c.debug("synthesize: starting")
+	s.c.debug("duplex_synthesize: starting")
 
 	conn, resp := rg.Must2(s.dial(ctx))
 	defer conn.Close()
 
-	s.c.debug("synthesize: websocket connected, LogID: ", resp.Header.Get("X-Tt-Logid"))
+	s.c.debug("duplex_synthesize: websocket connected, LogID: ", resp.Header.Get("X-Tt-Logid"))
 
 	rg.Must0(s.startConnection(ctx, conn))
 
-	s.c.debug("synthesize: protocol connected")
+	s.c.debug("duplex_synthesize: protocol connected")
 
 	sessionID := rg.Must(uuid.NewV7()).String()
 
@@ -207,7 +207,7 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 		},
 	))
 
-	s.c.debug("synthesize: TTS session started:", sessionID)
+	s.c.debug("duplex_synthesize: TTS session started:", sessionID)
 
 	sCtx, sCancel := context.WithCancel(ctx)
 	defer sCancel()
@@ -231,7 +231,7 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 				break sendLoop
 			}
 
-			s.c.debug("synthesize: input chunk:", chunk)
+			s.c.debug("duplex_synthesize: input chunk:", chunk)
 
 			// break sendLoop if error
 			if sCtx.Err() != nil {
@@ -266,29 +266,29 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 					},
 				},
 			); err != nil {
-				s.c.debug("synthesize: send TTS message error:", err)
+				s.c.debug("duplex_synthesize: send TTS message error:", err)
 				// break sendLoop if error
 				break sendLoop
 			} else {
-				s.c.debug("synthesize: TTS message sent for chunk:", chunk)
+				s.c.debug("duplex_synthesize: TTS message sent for chunk:", chunk)
 			}
 		}
 
 		if err != nil {
 			if err == io.EOF {
-				s.c.debug("synthesize: send loop EOF")
+				s.c.debug("duplex_synthesize: send loop EOF")
 				err = nil
 			} else {
-				s.c.debug("synthesize: send loop error:", err)
+				s.c.debug("duplex_synthesize: send loop error:", err)
 				sCancel()
 			}
 		}
 
 		if err = s.finishSession(ctx, conn, sessionID); err != nil {
-			s.c.debug("synthesize: finish session error:", err)
+			s.c.debug("duplex_synthesize: finish session error:", err)
 			sCancel()
 		} else {
-			s.c.debug("synthesize: TTS session finished")
+			s.c.debug("duplex_synthesize: TTS session finished")
 		}
 
 		return
@@ -306,10 +306,10 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 
 			var msg *duplex_wire.Message
 			if msg, err = s.receiveMessage(sCtx, conn); err != nil {
-				s.c.debug("synthesize: receive message error:", err)
+				s.c.debug("duplex_synthesize: receive message error:", err)
 				break recvLoop
 			} else {
-				s.c.debug("synthesize: received message:", msg.Type)
+				s.c.debug("duplex_synthesize: received message:", msg.Type)
 			}
 
 			switch msg.Type {
@@ -322,19 +322,19 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 					break recvLoop
 				}
 			case duplex_wire.MsgTypeError:
-				err = fmt.Errorf("synthesize: server error: (%d) %s", msg.ErrorCode, msg.Payload)
+				err = fmt.Errorf("duplex_synthesize: server error: (%d) %s", msg.ErrorCode, msg.Payload)
 				break recvLoop
 			default:
-				err = fmt.Errorf("synthesize: unexpected message type: %d", msg.Type)
+				err = fmt.Errorf("duplex_synthesize: unexpected message type: %d", msg.Type)
 				break recvLoop
 			}
 		}
 
 		if err != nil {
-			s.c.debug("synthesize: recv loop error:", err)
+			s.c.debug("duplex_synthesize: recv loop error:", err)
 			sCancel()
 		} else {
-			s.c.debug("synthesize: recv loop done")
+			s.c.debug("duplex_synthesize: recv loop done")
 		}
 
 		return
@@ -342,13 +342,13 @@ func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 
 	wg.Wait()
 
-	s.c.debug("synthesize: read/recv goroutines done")
+	s.c.debug("duplex_synthesize: read/recv goroutines done")
 
 	if err = s.finishConnection(ctx, conn); err != nil {
-		s.c.debug("synthesize: finish connection error:", err)
+		s.c.debug("duplex_synthesize: finish connection error:", err)
 		return
 	} else {
-		s.c.debug("synthesize: protocol disconnected")
+		s.c.debug("duplex_synthesize: protocol disconnected")
 	}
 
 	return
@@ -366,19 +366,19 @@ func (s *DuplexSynthesizeService) startConnection(ctx context.Context, conn *web
 	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
 	mt, frame := rg.Must2(conn.ReadMessage())
 	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-		err = fmt.Errorf("synthesize.startConnection: unexpected message type: %d", mt)
+		err = fmt.Errorf("duplex_synthesize.startConnection: unexpected message type: %d", mt)
 		return
 	}
 
 	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
 	if msg.Type != duplex_wire.MsgTypeFullServer {
-		err = fmt.Errorf("synthesize.startConnection: unexpected message type: %d", msg.Type)
+		err = fmt.Errorf("duplex_synthesize.startConnection: unexpected message type: %d", msg.Type)
 		return
 	}
 
 	if duplex_wire.Event(msg.Event) != duplex_wire.EventConnectionStarted {
-		err = fmt.Errorf("synthesize.startConnection: unexpected event: %d", msg.Event)
+		err = fmt.Errorf("duplex_synthesize.startConnection: unexpected event: %d", msg.Event)
 		return
 	}
 
@@ -406,18 +406,18 @@ func (s *DuplexSynthesizeService) startTTSSession(ctx context.Context, conn *web
 	rg.Must0(conn.WriteMessage(websocket.BinaryMessage, frame))
 	mt, frame := rg.Must2(conn.ReadMessage())
 	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-		err = fmt.Errorf("synthesize.startTTSSession: unexpected message type: %d", mt)
+		err = fmt.Errorf("duplex_synthesize.startTTSSession: unexpected message type: %d", mt)
 		return
 	}
 
 	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
 	if msg.Type != duplex_wire.MsgTypeFullServer {
-		err = fmt.Errorf("synthesize.startTTSSession: unexpected message type: %d", msg.Type)
+		err = fmt.Errorf("duplex_synthesize.startTTSSession: unexpected message type: %d", msg.Type)
 		return
 	}
 	if duplex_wire.Event(msg.Event) != duplex_wire.EventSessionStarted {
-		err = fmt.Errorf("synthesize.startTTSSession: unexpected event: %d", msg.Event)
+		err = fmt.Errorf("duplex_synthesize.startTTSSession: unexpected event: %d", msg.Event)
 		return
 	}
 
@@ -464,7 +464,7 @@ func (s *DuplexSynthesizeService) receiveMessage(ctx context.Context, conn *webs
 
 	mt, frame := rg.Must2(conn.ReadMessage())
 	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-		err = fmt.Errorf("synthesize.receiveMessage: unexpected message type: %d", mt)
+		err = fmt.Errorf("duplex_synthesize.receiveMessage: unexpected message type: %d", mt)
 		return
 	}
 
@@ -484,18 +484,18 @@ func (s *DuplexSynthesizeService) finishConnection(ctx context.Context, conn *we
 	mt, frame := rg.Must2(conn.ReadMessage())
 
 	if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
-		err = fmt.Errorf("synthesize.finishConnection: unexpected message type: %d", mt)
+		err = fmt.Errorf("duplex_synthesize.finishConnection: unexpected message type: %d", mt)
 		return
 	}
 
 	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
 	if msg.Type != duplex_wire.MsgTypeFullServer {
-		err = fmt.Errorf("synthesize.finishConnection: unexpected message type: %d", msg.Type)
+		err = fmt.Errorf("duplex_synthesize.finishConnection: unexpected message type: %d", msg.Type)
 		return
 	}
 	if duplex_wire.Event(msg.Event) != duplex_wire.EventConnectionFinished {
-		err = fmt.Errorf("synthesize.finishConnection: unexpected event: %d", msg.Event)
+		err = fmt.Errorf("duplex_synthesize.finishConnection: unexpected event: %d", msg.Event)
 		return
 	}
 

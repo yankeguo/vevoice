@@ -41,7 +41,26 @@ service := client.VoiceCloneUpload().
 err := service.Do(context.Background())
 ```
 
-**Bi-directional Stream TTS**
+**Stream Synthesize**
+
+```go
+service := client.StreamSynthesize().
+	SetInput(`“水何澹澹，山岛竦峙。树木丛生，百草丰茂。秋风萧瑟，洪波涌起”是实写眼前的景观，神奇而又壮观。“水何澹澹，山岛竦峙”是望海初得的大致印象，有点像绘画的轮廓。`).
+	SetFormat(FormatPCM).
+	SetRequestID(requestId.String()).
+	SetCluster(StreamSynthesizeClusterV2).
+	SetUserID("test").
+	SetSpeakerID(os.Getenv("VOLCVOICE_SPEAKER_ID")).
+	SetOutput(func(ctx context.Context, buf []byte) (err error) {
+		t.Logf("len(buf): %d", len(buf))
+		_, err = f.Write(buf)
+		return
+	})
+
+err := service.Do(context.Background())
+```
+
+**Bi-directional Stream Synthesize**
 
 ```go
 var (
@@ -54,7 +73,7 @@ var (
 	inputIdx int64 = -1
 )
 
-service := client.Synthesize().
+service := client.DuplexSynthesize().
 	SetResourceID(SynthesizeResourceVoiceClone2).
 	SetRequestID(rg.Must(uuid.NewV7()).String()).
 	SetConnectID(rg.Must(uuid.NewV7()).String()).

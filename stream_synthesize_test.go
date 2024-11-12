@@ -20,9 +20,9 @@ func TestVoiceCloneService(t *testing.T) {
 	require.NoError(t, err)
 	defer f.Close()
 
-	s := client.VoiceCloneSynthesize().
+	s := client.StreamSynthesize().
 		SetInput(`“水何澹澹，山岛竦峙。树木丛生，百草丰茂。秋风萧瑟，洪波涌起”是实写眼前的景观，神奇而又壮观。“水何澹澹，山岛竦峙”是望海初得的大致印象，有点像绘画的轮廓。`).
-		SetFormat(AudioFormatPCM).
+		SetFormat(FormatPCM).
 		SetRequestID(requestId.String()).
 		SetCluster(os.Getenv("VOLCVOICE_TEST_VOICECLONE_CLUSTER")).
 		SetUserID("test").

@@ -12,45 +12,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/yankeguo/rg"
-	"github.com/yankeguo/volcvoice/internal/tts_wire"
+	"github.com/yankeguo/volcvoice/internal/duplex_wire"
 )
+
+// StreamSynthesizeInput is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
+type StreamSynthesizeInput func(ctx context.Context) (chunk string, err error)
 
 const (
-	AudioFormatAAC      = "aac"
-	AudioFormatM4A      = "m4a"
-	AudioFormatMP3      = "mp3"
-	AudioFormatOGG      = "ogg"
-	AudioFormatOGG_OPUS = "ogg_opus"
-	AudioFormatPCM      = "pcm"
-	AudioFormatWAV      = "wav"
+	// DuplexSynthesizeResourceStandard is a resource id for TTS service.
+	DuplexSynthesizeResourceStandard = "volc.service_type.10029"
 
-	SampleRate8K  = 8000
-	SampleRate16K = 16000
-	SampleRate24K = 24000
-	SampleRate32K = 32000
-	SampleRate44K = 44100
-	SampleRate48K = 48000
+	// DuplexSynthesizeResourceVoiceCloneV2 is a resource id for VoiceClone 2.0 service.
+	DuplexSynthesizeResourceVoiceCloneV2 = "volc.megatts.default"
+
+	duplexSynthesizeNamespace = "BidirectionalTTS"
 )
 
-// SynthesizeStreamInput is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
-type SynthesizeStreamInput func(ctx context.Context) (chunk string, err error)
-
-// SynthesizeStreamOutput is a function to process output audio chunk.
-type SynthesizeStreamOutput func(ctx context.Context, chunk []byte) (err error)
-
-const (
-	// SynthesizeResourceTTS is a resource id for TTS service.
-	SynthesizeResourceTTS = "volc.service_type.10029"
-	// SynthesizeResourceVoiceClone2_0 is a resource id for VoiceClone 2.0 service.
-	SynthesizeResourceVoiceClone2_0 = "volc.megatts.default"
-
-	synthesizeNamespaceBidirectionalTTS = "BidirectionalTTS"
-)
-
-// SynthesizeService is a service to synthesize speech in bi-directional stream mode.
-type SynthesizeService struct {
+// DuplexSynthesizeService is a service to synthesize speech in bi-directional stream mode.
+type DuplexSynthesizeService struct {
 	c     *client
-	proto *tts_wire.BinaryProtocol
+	proto *duplex_wire.BinaryProtocol
 
 	resourceID string
 	requestID  string
@@ -65,98 +46,98 @@ type SynthesizeService struct {
 
 	ssml bool
 
-	input  SynthesizeStreamInput
-	output SynthesizeStreamOutput
+	input  StreamSynthesizeInput
+	output StreamSynthesizeOutput
 }
 
-func newSynthesizeService(c *client) *SynthesizeService {
-	s := &SynthesizeService{
+func newDuplexSynthesizeService(c *client) *DuplexSynthesizeService {
+	s := &DuplexSynthesizeService{
 		c:     c,
-		proto: tts_wire.NewBinaryProtocol(),
+		proto: duplex_wire.NewBinaryProtocol(),
 	}
 
-	s.proto.SetVersion(tts_wire.Version1)
-	s.proto.SetHeaderSize(tts_wire.HeaderSize4)
-	s.proto.SetSerialization(tts_wire.SerializationJSON)
-	s.proto.SetCompression(tts_wire.CompressionNone, nil)
-	s.proto.ContainsSequence = tts_wire.ContainsSequence
+	s.proto.SetVersion(duplex_wire.Version1)
+	s.proto.SetHeaderSize(duplex_wire.HeaderSize4)
+	s.proto.SetSerialization(duplex_wire.SerializationJSON)
+	s.proto.SetCompression(duplex_wire.CompressionNone, nil)
+	s.proto.ContainsSequence = duplex_wire.ContainsSequence
 
 	return s
 }
 
 // SetResourceID sets the resource id
-func (s *SynthesizeService) SetResourceID(id string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetResourceID(id string) *DuplexSynthesizeService {
 	s.resourceID = id
 	return s
 }
 
 // SetRequestID sets the request id
-func (s *SynthesizeService) SetRequestID(id string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetRequestID(id string) *DuplexSynthesizeService {
 	s.requestID = id
 	return s
 }
 
 // SetConnectID sets the connect id
-func (s *SynthesizeService) SetConnectID(id string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetConnectID(id string) *DuplexSynthesizeService {
 	s.connectID = id
 	return s
 }
 
 // SetUserID sets the user id
-func (s *SynthesizeService) SetUserID(id string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetUserID(id string) *DuplexSynthesizeService {
 	s.userID = id
 	return s
 }
 
 // SetSpeakerID sets the speaker id, for VoiceClone service, use the "S_" started speaker id.
-func (s *SynthesizeService) SetSpeakerID(id string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetSpeakerID(id string) *DuplexSynthesizeService {
 	s.speakerID = id
 	return s
 }
 
 // SetFormat sets the format of the synthesized speech
-func (s *SynthesizeService) SetFormat(format string) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetFormat(format string) *DuplexSynthesizeService {
 	s.format = format
 	return s
 }
 
 // SetSampleRate sets the sample rate of the synthesized speech
-func (s *SynthesizeService) SetSampleRate(rate int) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetSampleRate(rate int) *DuplexSynthesizeService {
 	s.sampleRate = rate
 	return s
 }
 
 // SetSpeechRate sets the speech rate of the synthesized speech
-func (s *SynthesizeService) SetSpeechRate(rate int) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetSpeechRate(rate int) *DuplexSynthesizeService {
 	s.speechRate = rate
 	return s
 }
 
 // SetPitchRate sets the pitch rate of the synthesized speech
-func (s *SynthesizeService) SetPitchRate(rate int) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetPitchRate(rate int) *DuplexSynthesizeService {
 	s.pitchRate = rate
 	return s
 }
 
 // SetSSML sets the ssml mode
-func (s *SynthesizeService) SetSSML(ssml bool) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetSSML(ssml bool) *DuplexSynthesizeService {
 	s.ssml = ssml
 	return s
 }
 
 // SetInputFunc sets the input function
-func (s *SynthesizeService) SetInput(input SynthesizeStreamInput) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetInput(input StreamSynthesizeInput) *DuplexSynthesizeService {
 	s.input = input
 	return s
 }
 
 // SetOutputFunc sets the output function
-func (s *SynthesizeService) SetOutput(output SynthesizeStreamOutput) *SynthesizeService {
+func (s *DuplexSynthesizeService) SetOutput(output StreamSynthesizeOutput) *DuplexSynthesizeService {
 	s.output = output
 	return s
 }
 
-func (s *SynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, resp *http.Response, err error) {
+func (s *DuplexSynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, resp *http.Response, err error) {
 	if s.resourceID == "" {
 		err = errors.New("synthesize: resource id is required")
 		return
@@ -184,7 +165,7 @@ func (s *SynthesizeService) dial(ctx context.Context) (conn *websocket.Conn, res
 	return
 }
 
-func (s *SynthesizeService) Do(ctx context.Context) (err error) {
+func (s *DuplexSynthesizeService) Do(ctx context.Context) (err error) {
 	defer rg.Guard(&err)
 
 	if s.input == nil {
@@ -214,10 +195,10 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 		ctx,
 		conn,
 		sessionID,
-		synthesizeNamespaceBidirectionalTTS,
-		&tts_wire.TTSReqParams{
+		duplexSynthesizeNamespace,
+		&duplex_wire.TTSReqParams{
 			Speaker: s.speakerID,
-			AudioParams: &tts_wire.AudioParams{
+			AudioParams: &duplex_wire.AudioParams{
 				Format:     s.format,
 				SampleRate: int32(s.sampleRate),
 				SpeechRate: int32(s.speechRate),
@@ -272,12 +253,12 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 				sCtx,
 				conn,
 				sessionID,
-				synthesizeNamespaceBidirectionalTTS,
-				&tts_wire.TTSReqParams{
+				duplexSynthesizeNamespace,
+				&duplex_wire.TTSReqParams{
 					Text:    text,
 					Ssml:    ssml,
 					Speaker: s.speakerID,
-					AudioParams: &tts_wire.AudioParams{
+					AudioParams: &duplex_wire.AudioParams{
 						Format:     s.format,
 						SampleRate: int32(s.sampleRate),
 						SpeechRate: int32(s.speechRate),
@@ -323,7 +304,7 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 				break recvLoop
 			}
 
-			var msg *tts_wire.Message
+			var msg *duplex_wire.Message
 			if msg, err = s.receiveMessage(sCtx, conn); err != nil {
 				s.c.debug("synthesize: receive message error:", err)
 				break recvLoop
@@ -332,15 +313,15 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 			}
 
 			switch msg.Type {
-			case tts_wire.MsgTypeFullServer:
-				if msg.Event == int32(tts_wire.EventSessionFinished) {
+			case duplex_wire.MsgTypeFullServer:
+				if msg.Event == int32(duplex_wire.EventSessionFinished) {
 					break recvLoop
 				}
-			case tts_wire.MsgTypeAudioOnlyServer:
+			case duplex_wire.MsgTypeAudioOnlyServer:
 				if err = s.output(sCtx, msg.Payload); err != nil {
 					break recvLoop
 				}
-			case tts_wire.MsgTypeError:
+			case duplex_wire.MsgTypeError:
 				err = fmt.Errorf("synthesize: server error: (%d) %s", msg.ErrorCode, msg.Payload)
 				break recvLoop
 			default:
@@ -373,11 +354,11 @@ func (s *SynthesizeService) Do(ctx context.Context) (err error) {
 	return
 }
 
-func (s *SynthesizeService) startConnection(ctx context.Context, conn *websocket.Conn) (err error) {
+func (s *DuplexSynthesizeService) startConnection(ctx context.Context, conn *websocket.Conn) (err error) {
 	defer rg.Guard(&err)
 
-	msg := rg.Must(tts_wire.NewMessage(tts_wire.MsgTypeFullClient, tts_wire.MsgTypeFlagWithEvent))
-	msg.Event = int32(tts_wire.EventStartConnection)
+	msg := rg.Must(duplex_wire.NewMessage(duplex_wire.MsgTypeFullClient, duplex_wire.MsgTypeFlagWithEvent))
+	msg.Event = int32(duplex_wire.EventStartConnection)
 	msg.Payload = []byte("{}")
 
 	frame := rg.Must(s.proto.Marshal(msg))
@@ -389,14 +370,14 @@ func (s *SynthesizeService) startConnection(ctx context.Context, conn *websocket
 		return
 	}
 
-	msg, _ = rg.Must2(tts_wire.Unmarshal(frame, s.proto.ContainsSequence))
+	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
-	if msg.Type != tts_wire.MsgTypeFullServer {
+	if msg.Type != duplex_wire.MsgTypeFullServer {
 		err = fmt.Errorf("synthesize.startConnection: unexpected message type: %d", msg.Type)
 		return
 	}
 
-	if tts_wire.Event(msg.Event) != tts_wire.EventConnectionStarted {
+	if duplex_wire.Event(msg.Event) != duplex_wire.EventConnectionStarted {
 		err = fmt.Errorf("synthesize.startConnection: unexpected event: %d", msg.Event)
 		return
 	}
@@ -404,18 +385,18 @@ func (s *SynthesizeService) startConnection(ctx context.Context, conn *websocket
 	return
 }
 
-func (s *SynthesizeService) startTTSSession(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *tts_wire.TTSReqParams) (err error) {
+func (s *DuplexSynthesizeService) startTTSSession(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *duplex_wire.TTSReqParams) (err error) {
 	defer rg.Guard(&err)
 
-	req := tts_wire.TTSRequest{
-		Event:     int32(tts_wire.EventStartSession),
+	req := duplex_wire.TTSRequest{
+		Event:     int32(duplex_wire.EventStartSession),
 		Namespace: namespace,
 		ReqParams: params,
 	}
 
 	payload := rg.Must(json.Marshal(&req))
 
-	msg := rg.Must(tts_wire.NewMessage(tts_wire.MsgTypeFullClient, tts_wire.MsgTypeFlagWithEvent))
+	msg := rg.Must(duplex_wire.NewMessage(duplex_wire.MsgTypeFullClient, duplex_wire.MsgTypeFlagWithEvent))
 	msg.Event = req.Event
 	msg.SessionID = sessionID
 	msg.Payload = payload
@@ -429,13 +410,13 @@ func (s *SynthesizeService) startTTSSession(ctx context.Context, conn *websocket
 		return
 	}
 
-	msg, _ = rg.Must2(tts_wire.Unmarshal(frame, s.proto.ContainsSequence))
+	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
-	if msg.Type != tts_wire.MsgTypeFullServer {
+	if msg.Type != duplex_wire.MsgTypeFullServer {
 		err = fmt.Errorf("synthesize.startTTSSession: unexpected message type: %d", msg.Type)
 		return
 	}
-	if tts_wire.Event(msg.Event) != tts_wire.EventSessionStarted {
+	if duplex_wire.Event(msg.Event) != duplex_wire.EventSessionStarted {
 		err = fmt.Errorf("synthesize.startTTSSession: unexpected event: %d", msg.Event)
 		return
 	}
@@ -443,18 +424,18 @@ func (s *SynthesizeService) startTTSSession(ctx context.Context, conn *websocket
 	return
 }
 
-func (s *SynthesizeService) sendTTSMessage(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *tts_wire.TTSReqParams) (err error) {
+func (s *DuplexSynthesizeService) sendTTSMessage(ctx context.Context, conn *websocket.Conn, sessionID, namespace string, params *duplex_wire.TTSReqParams) (err error) {
 	defer rg.Guard(&err)
 
-	req := tts_wire.TTSRequest{
-		Event:     int32(tts_wire.EventTaskRequest),
+	req := duplex_wire.TTSRequest{
+		Event:     int32(duplex_wire.EventTaskRequest),
 		Namespace: namespace,
 		ReqParams: params,
 	}
 
 	payload := rg.Must(json.Marshal(&req))
 
-	msg := rg.Must(tts_wire.NewMessage(tts_wire.MsgTypeFullClient, tts_wire.MsgTypeFlagWithEvent))
+	msg := rg.Must(duplex_wire.NewMessage(duplex_wire.MsgTypeFullClient, duplex_wire.MsgTypeFlagWithEvent))
 	msg.Event = req.Event
 	msg.SessionID = sessionID
 	msg.Payload = payload
@@ -465,11 +446,11 @@ func (s *SynthesizeService) sendTTSMessage(ctx context.Context, conn *websocket.
 	return
 }
 
-func (s *SynthesizeService) finishSession(ctx context.Context, conn *websocket.Conn, sessionID string) (err error) {
+func (s *DuplexSynthesizeService) finishSession(ctx context.Context, conn *websocket.Conn, sessionID string) (err error) {
 	defer rg.Guard(&err)
 
-	msg := rg.Must(tts_wire.NewMessage(tts_wire.MsgTypeFullClient, tts_wire.MsgTypeFlagWithEvent))
-	msg.Event = int32(tts_wire.EventFinishSession)
+	msg := rg.Must(duplex_wire.NewMessage(duplex_wire.MsgTypeFullClient, duplex_wire.MsgTypeFlagWithEvent))
+	msg.Event = int32(duplex_wire.EventFinishSession)
 	msg.SessionID = sessionID
 	msg.Payload = []byte("{}")
 
@@ -478,7 +459,7 @@ func (s *SynthesizeService) finishSession(ctx context.Context, conn *websocket.C
 	return
 }
 
-func (s *SynthesizeService) receiveMessage(ctx context.Context, conn *websocket.Conn) (msg *tts_wire.Message, err error) {
+func (s *DuplexSynthesizeService) receiveMessage(ctx context.Context, conn *websocket.Conn) (msg *duplex_wire.Message, err error) {
 	defer rg.Guard(&err)
 
 	mt, frame := rg.Must2(conn.ReadMessage())
@@ -487,15 +468,15 @@ func (s *SynthesizeService) receiveMessage(ctx context.Context, conn *websocket.
 		return
 	}
 
-	msg, _ = rg.Must2(tts_wire.Unmarshal(frame, s.proto.ContainsSequence))
+	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 	return
 }
 
-func (s *SynthesizeService) finishConnection(ctx context.Context, conn *websocket.Conn) (err error) {
+func (s *DuplexSynthesizeService) finishConnection(ctx context.Context, conn *websocket.Conn) (err error) {
 	defer rg.Guard(&err)
 
-	msg := rg.Must(tts_wire.NewMessage(tts_wire.MsgTypeFullClient, tts_wire.MsgTypeFlagWithEvent))
-	msg.Event = int32(tts_wire.EventFinishConnection)
+	msg := rg.Must(duplex_wire.NewMessage(duplex_wire.MsgTypeFullClient, duplex_wire.MsgTypeFlagWithEvent))
+	msg.Event = int32(duplex_wire.EventFinishConnection)
 	msg.Payload = []byte("{}")
 
 	frame := rg.Must(s.proto.Marshal(msg))
@@ -507,13 +488,13 @@ func (s *SynthesizeService) finishConnection(ctx context.Context, conn *websocke
 		return
 	}
 
-	msg, _ = rg.Must2(tts_wire.Unmarshal(frame, s.proto.ContainsSequence))
+	msg, _ = rg.Must2(duplex_wire.Unmarshal(frame, s.proto.ContainsSequence))
 
-	if msg.Type != tts_wire.MsgTypeFullServer {
+	if msg.Type != duplex_wire.MsgTypeFullServer {
 		err = fmt.Errorf("synthesize.finishConnection: unexpected message type: %d", msg.Type)
 		return
 	}
-	if tts_wire.Event(msg.Event) != tts_wire.EventConnectionFinished {
+	if duplex_wire.Event(msg.Event) != duplex_wire.EventConnectionFinished {
 		err = fmt.Errorf("synthesize.finishConnection: unexpected event: %d", msg.Event)
 		return
 	}

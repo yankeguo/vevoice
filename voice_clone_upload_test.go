@@ -17,10 +17,9 @@ func TestVoiceCloneUpload(t *testing.T) {
 	require.NoError(t, err)
 
 	service := client.VoiceCloneUpload().
-		SetResourceID(VoiceCloneUploadResource2_0).
 		SetSpeakerID(os.Getenv("VOLCVOICE_SPEAKER_ID")).
-		AddAudio(buf, AudioFormatMP3, "").
-		SetModelType(VoiceCloneModelType2_0)
+		AddAudio(buf, FormatMP3, "").
+		SetModelType(VoiceCloneUploadModelTypeV2)
 
 	err = service.Do(context.Background())
 	require.NoError(t, err)

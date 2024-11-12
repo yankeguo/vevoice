@@ -17,6 +17,23 @@ import (
 )
 
 const (
+	FormatAAC      = "aac"
+	FormatM4A      = "m4a"
+	FormatMP3      = "mp3"
+	FormatOGG      = "ogg"
+	FormatOGG_OPUS = "ogg_opus"
+	FormatPCM      = "pcm"
+	FormatWAV      = "wav"
+
+	SampleRate8K  = 8000
+	SampleRate16K = 16000
+	SampleRate24K = 24000
+	SampleRate32K = 32000
+	SampleRate44K = 44100
+	SampleRate48K = 48000
+)
+
+const (
 	defaultEndpoint = "openspeech.bytedance.com"
 
 	envKeyDebug    = "VOLCVOICE_VERBOSE"
@@ -80,14 +97,14 @@ func WithHTTPClient(client *http.Client) Option {
 
 // Client is the interface for the volcvoice client.
 type Client interface {
-	// Synthesize create a new bidirectional voice synthesize service.
-	Synthesize() *SynthesizeService
+	// StreamSynthesize create a new service for stream synthesize service.
+	StreamSynthesize() *StreamSynthesizeService
+
+	// DuplexSynthesize create a new bidirectional stream synthesize service.
+	DuplexSynthesize() *DuplexSynthesizeService
 
 	// VoiceCloneUpload create a new service for voice clone upload.
 	VoiceCloneUpload() *VoiceCloneUploadService
-
-	// VoiceCloneSynthesize create a new service for voice clone synthesize.
-	VoiceCloneSynthesize() *VoiceCloneSynthesizeService
 }
 
 type client struct {
@@ -168,14 +185,14 @@ func (c *client) httpPost(ctx context.Context, path string, header map[string]st
 	return
 }
 
-func (c *client) Synthesize() *SynthesizeService {
-	return newSynthesizeService(c)
+func (c *client) DuplexSynthesize() *DuplexSynthesizeService {
+	return newDuplexSynthesizeService(c)
 }
 
 func (c *client) VoiceCloneUpload() *VoiceCloneUploadService {
 	return newVoiceCloneUploadService(c)
 }
 
-func (c *client) VoiceCloneSynthesize() *VoiceCloneSynthesizeService {
-	return newVoiceCloneSynthesizeService(c)
+func (c *client) StreamSynthesize() *StreamSynthesizeService {
+	return newStreamSynthesizeService(c)
 }

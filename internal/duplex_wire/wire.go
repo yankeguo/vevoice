@@ -1,4 +1,4 @@
-package tts_wire
+package duplex_wire
 
 /**
  * This file is extracted and combined from the official demo code

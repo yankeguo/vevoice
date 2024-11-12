@@ -7,17 +7,17 @@ import (
 )
 
 const (
-	VoiceCloneUploadResource2_0 = "volc.megatts.voiceclone"
+	voiceCloneUploadResource = "volc.megatts.voiceclone"
 
-	VoiceCloneLanguageCN = 0
-	VoiceCloneLanguageEN = 1
-	VoiceCloneLanguageJA = 2
-	VoiceCloneLanguageES = 3
-	VoiceCloneLanguageID = 4
-	VoiceCloneLanguagePT = 5
+	VoiceCloneUploadLanguageCN = 0
+	VoiceCloneUploadLanguageEN = 1
+	VoiceCloneUploadLanguageJA = 2
+	VoiceCloneUploadLanguageES = 3
+	VoiceCloneUploadLanguageID = 4
+	VoiceCloneUploadLanguagePT = 5
 
-	VoiceCloneModelType1_0 = 0
-	VoiceCloneModelType2_0 = 1
+	VoiceCloneUploadModelTypeV1 = 0
+	VoiceCloneUploadModelTypeV2 = 1
 )
 
 type VoiceCloneUploadAudio struct {
@@ -37,22 +37,16 @@ type VoiceCloneUploadResponse struct {
 type VoiceCloneUploadService struct {
 	c *client
 
-	resourceID string
-	speakerID  string
-	audios     []VoiceCloneUploadAudio
-	language   *int
-	modelType  *int
+	speakerID string
+	audios    []VoiceCloneUploadAudio
+	language  *int
+	modelType *int
 }
 
 func newVoiceCloneUploadService(c *client) *VoiceCloneUploadService {
 	s := &VoiceCloneUploadService{
 		c: c,
 	}
-	return s
-}
-
-func (s *VoiceCloneUploadService) SetResourceID(resourceID string) *VoiceCloneUploadService {
-	s.resourceID = resourceID
 	return s
 }
 
@@ -104,7 +98,7 @@ func (s *VoiceCloneUploadService) Do(ctx context.Context) (err error) {
 		"/api/v1/mega_tts/audio/upload",
 		map[string]string{
 			"Authorization": "Bearer;" + s.c.token,
-			"Resource-Id":   s.resourceID,
+			"Resource-Id":   voiceCloneUploadResource,
 		},
 		s.buildBody(),
 		&res,

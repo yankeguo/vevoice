@@ -7,11 +7,21 @@ import (
 	"net/http"
 
 	"github.com/gorilla/websocket"
-	"github.com/yankeguo/volcvoice/internal/voiceclone_wire"
+	"github.com/yankeguo/volcvoice/internal/stream_wire"
 )
 
-// VoiceCloneSynthesizeService is the service for voice clone.
-type VoiceCloneSynthesizeService struct {
+const (
+	StreamSynthesizeClusterV1           = "volcano_mega"
+	StreamSynthesizeClusterV1Concurrent = "volcano_mega_concurr"
+	StreamSynthesizeClusterV2           = "volcano_icl"
+	StreamSynthesizeClusterV2Concurrent = "volcano_icl_concurr"
+)
+
+// StreamSynthesizeOutput is a function to process output audio chunk.
+type StreamSynthesizeOutput func(ctx context.Context, chunk []byte) (err error)
+
+// StreamSynthesizeService is the service for voice clone.
+type StreamSynthesizeService struct {
 	c *client
 
 	cluster   string
@@ -22,66 +32,66 @@ type VoiceCloneSynthesizeService struct {
 	input     string
 	ssml      bool
 
-	output SynthesizeStreamOutput
+	output StreamSynthesizeOutput
 }
 
-// newVoiceCloneSynthesizeService creates a new voice clone service, in streaming mode.
-func newVoiceCloneSynthesizeService(c *client) *VoiceCloneSynthesizeService {
-	s := &VoiceCloneSynthesizeService{
+// newStreamSynthesizeService creates a new voice clone service, in streaming mode.
+func newStreamSynthesizeService(c *client) *StreamSynthesizeService {
+	s := &StreamSynthesizeService{
 		c: c,
 	}
 	return s
 }
 
 // SetCluster sets the cluster for the audio.
-func (s *VoiceCloneSynthesizeService) SetCluster(cluster string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetCluster(cluster string) *StreamSynthesizeService {
 	s.cluster = cluster
 	return s
 }
 
 // SetUserID sets the user id for the audio.
-func (s *VoiceCloneSynthesizeService) SetUserID(userID string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetUserID(userID string) *StreamSynthesizeService {
 	s.userID = userID
 	return s
 }
 
 // SetSpeakerID sets the voice type for the audio, also known as the speaker id.
-func (s *VoiceCloneSynthesizeService) SetSpeakerID(speakerID string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetSpeakerID(speakerID string) *StreamSynthesizeService {
 	s.speakerID = speakerID
 	return s
 }
 
 // SetFormat sets the encoding for the audio.
-func (s *VoiceCloneSynthesizeService) SetFormat(format string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetFormat(format string) *StreamSynthesizeService {
 	s.format = format
 	return s
 }
 
 // SetRequestID sets the request id for the audio.
-func (s *VoiceCloneSynthesizeService) SetRequestID(reqID string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetRequestID(reqID string) *StreamSynthesizeService {
 	s.requestID = reqID
 	return s
 }
 
 // SetInput sets the text for the audio.
-func (s *VoiceCloneSynthesizeService) SetInput(input string) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetInput(input string) *StreamSynthesizeService {
 	s.input = input
 	return s
 }
 
 // SetSSML sets the text type to SSML.
-func (s *VoiceCloneSynthesizeService) SetSSML(ssml bool) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetSSML(ssml bool) *StreamSynthesizeService {
 	s.ssml = ssml
 	return s
 }
 
 // SetOutput sets the handler for the audio chunks.
-func (s *VoiceCloneSynthesizeService) SetOutput(output SynthesizeStreamOutput) *VoiceCloneSynthesizeService {
+func (s *StreamSynthesizeService) SetOutput(output StreamSynthesizeOutput) *StreamSynthesizeService {
 	s.output = output
 	return s
 }
 
-func (s *VoiceCloneSynthesizeService) buildBody() map[string]any {
+func (s *StreamSynthesizeService) buildBody() map[string]any {
 	mApp := map[string]any{
 		"appid":   s.c.appID,
 		"token":   "placeholder",
@@ -120,7 +130,7 @@ func (s *VoiceCloneSynthesizeService) buildBody() map[string]any {
 }
 
 // Do sends the audio request to the server, and stream audio chunks to handler.
-func (s *VoiceCloneSynthesizeService) Do(ctx context.Context) (err error) {
+func (s *StreamSynthesizeService) Do(ctx context.Context) (err error) {
 	header := http.Header{}
 	header.Add("Authorization", "Bearer;"+s.c.token)
 
@@ -135,7 +145,7 @@ func (s *VoiceCloneSynthesizeService) Do(ctx context.Context) (err error) {
 	defer conn.Close()
 
 	var body []byte
-	if body, err = voiceclone_wire.EncodeRequest(s.buildBody()); err != nil {
+	if body, err = stream_wire.EncodeRequest(s.buildBody()); err != nil {
 		return
 	}
 
@@ -156,8 +166,8 @@ func (s *VoiceCloneSynthesizeService) Do(ctx context.Context) (err error) {
 			err = fmt.Errorf("unexpected message type: %d", mt)
 			return
 		}
-		var res voiceclone_wire.Response
-		if res, err = voiceclone_wire.DecodeResponse(buf); err != nil {
+		var res stream_wire.Response
+		if res, err = stream_wire.DecodeResponse(buf); err != nil {
 			return
 		}
 		if res.IsPayload {

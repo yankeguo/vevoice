@@ -31,11 +31,11 @@ func TestSynthesizeService(t *testing.T) {
 		inputIdx int64 = -1
 	)
 
-	err = client.Synthesize().
-		SetResourceID(SynthesizeResourceVoiceClone2_0).
+	err = client.DuplexSynthesize().
+		SetResourceID(DuplexSynthesizeResourceVoiceCloneV2).
 		SetRequestID(rg.Must(uuid.NewV7()).String()).
 		SetConnectID(rg.Must(uuid.NewV7()).String()).
-		SetFormat(AudioFormatPCM).
+		SetFormat(FormatPCM).
 		SetSampleRate(SampleRate16K).
 		SetSpeakerID(os.Getenv("VOLCVOICE_SPEAKER_ID")).
 		SetInput(func(ctx context.Context) (chunk string, err error) {

@@ -1,4 +1,4 @@
-package voiceclone_wire
+package stream_wire
 
 import (
 	"encoding/binary"

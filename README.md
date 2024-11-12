@@ -33,10 +33,9 @@ client := volcvoice.NewClient(
 
 ```go
 service := client.VoiceCloneUpload().
-	SetResourceID(VoiceCloneUploadResource2).
 	SetSpeakerID(os.Getenv("VOLCVOICE_SPEAKER_ID")).
-	AddAudio(buf, AudioFormatMP3, "").
-	SetModelType(VoiceCloneModelType2)
+	AddAudio(buf, FormatMP3, "").
+	SetModelType(VoiceCloneUploadModelTypeV2)
 
 err := service.Do(context.Background())
 ```

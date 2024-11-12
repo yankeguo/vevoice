@@ -13,6 +13,86 @@ import (
 	"github.com/yankeguo/rg"
 )
 
+func TestStreamSynthesizeInputFromChannel(t *testing.T) {
+	input := []string{
+		"离离原上草，一岁一枯荣。",
+		"野火烧不尽，春风吹又生。",
+		"远芳侵古道，晴翠接荒城。",
+		"又送王孙去，萋萋满别情。",
+	}
+
+	ch := make(chan string, len(input))
+
+	done := make(chan struct{})
+
+	go func() {
+		for _, chunk := range input {
+			ch <- chunk
+		}
+		close(ch)
+		close(done)
+	}()
+
+	fn := StreamSynthesizeInputFromChannel(ch)
+
+	ctx := context.Background()
+
+	chunk, err := fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[0], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[1], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[2], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[3], chunk)
+
+	chunk, err = fn(ctx)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, "", chunk)
+
+	<-done
+}
+
+func TestStreamSynthesizeInputFromSlice(t *testing.T) {
+	input := []string{
+		"离离原上草，一岁一枯荣。",
+		"野火烧不尽，春风吹又生。",
+		"远芳侵古道，晴翠接荒城。",
+		"又送王孙去，萋萋满别情。",
+	}
+
+	fn := StreamSynthesizeInputFromSlice(input)
+
+	ctx := context.Background()
+
+	chunk, err := fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[0], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[1], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[2], chunk)
+
+	chunk, err = fn(ctx)
+	require.NoError(t, err)
+	require.Equal(t, input[3], chunk)
+
+	chunk, err = fn(ctx)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, "", chunk)
+}
+
 func TestDuplexSynthesizeService(t *testing.T) {
 	client, err := NewClient(WithVerbose(true))
 	require.NoError(t, err)

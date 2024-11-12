@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -17,6 +18,39 @@ import (
 
 // StreamSynthesizeInput is a function to get input text chunk, the last chunk should be empty string and io.EOF error.
 type StreamSynthesizeInput func(ctx context.Context) (chunk string, err error)
+
+func StreamSynthesizeInputFromChannel(input chan string) StreamSynthesizeInput {
+	return func(ctx context.Context) (string, error) {
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case chunk, more := <-input:
+			if !more {
+				return "", io.EOF
+			}
+			return chunk, nil
+		}
+	}
+}
+
+// StreamSynthesizeOutput is a function to handle output audio chunk.
+func StreamSynthesizeInputFromSlice(input []string) StreamSynthesizeInput {
+	if len(input) == 0 {
+		return func(ctx context.Context) (string, error) {
+			return "", io.EOF
+		}
+	}
+
+	var _idx int64 = -1
+
+	return func(ctx context.Context) (string, error) {
+		idx := atomic.AddInt64(&_idx, 1)
+		if idx >= int64(len(input)) {
+			return "", io.EOF
+		}
+		return input[idx], nil
+	}
+}
 
 const (
 	// DuplexSynthesizeResourceStandard is a resource id for TTS service.

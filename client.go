@@ -2,7 +2,9 @@ package volcvoice
 
 import (
 	"errors"
+	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/yankeguo/volcvoice/tts"
@@ -11,6 +13,7 @@ import (
 const (
 	DefaultEndpoint = "openspeech.bytedance.com"
 
+	EnvDebug    = "VOLCVIOCE_DEBUG"
 	EnvEndpoint = "VOLCVOICE_ENDPOINT"
 	EnvToken    = "VOLCVOICE_TOKEN"
 	EnvAppID    = "VOLCVOICE_APPID"
@@ -46,7 +49,6 @@ func WithAppID(appID string) Option {
 	}
 }
 
-// WithDebug sets the debug mode for the client.
 func WithDebug(debug bool) Option {
 	return func(opts *options) {
 		opts.debug = debug
@@ -70,20 +72,23 @@ func NewClient(fns ...Option) (Client, error) {
 		token:    strings.TrimSpace(os.Getenv(EnvToken)),
 		appID:    strings.TrimSpace(os.Getenv(EnvAppID)),
 	}
-	if opts.endpoint == "" {
-		opts.endpoint = DefaultEndpoint
-	}
+	opts.debug, _ = strconv.ParseBool(strings.TrimSpace(os.Getenv(EnvDebug)))
+
 	for _, fn := range fns {
 		fn(&opts)
 	}
+
 	if opts.endpoint == "" {
-		return nil, errors.New("volcvoice.Client: endpoint is required")
+		opts.endpoint = DefaultEndpoint
+		if opts.debug {
+			log.Println("volcvoice.NewClient: using default endpoint:", opts.endpoint)
+		}
 	}
 	if opts.token == "" {
-		return nil, errors.New("volcvoice.Client: token is required")
+		return nil, errors.New("volcvoice.NewClient: token is required")
 	}
 	if opts.appID == "" {
-		return nil, errors.New("volcvoice.Client: appId is required")
+		return nil, errors.New("volcvoice.NewClient: appId is required")
 	}
 	return &client{opts: opts}, nil
 }
@@ -91,8 +96,9 @@ func NewClient(fns ...Option) (Client, error) {
 // TTS create a new bidirectional TTS service.
 func (c *client) TTS() *tts.Service {
 	return tts.New().
-		SetEndpoint(c.opts.endpoint).
-		SetAppID(c.opts.appID).
-		SetToken(c.opts.token).
-		SetDebug(c.opts.debug)
+		SetDebug(c.opts.debug).
+		SetAPIEndpoint(c.opts.endpoint).
+		SetAPIPath("/api/v3/tts/bidirection").
+		SetAPIAppID(c.opts.appID).
+		SetAPIToken(c.opts.token)
 }
